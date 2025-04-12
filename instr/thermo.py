@@ -15,6 +15,8 @@ import colorama
 import schedule
 import serial
 
+from utils.config_utils import get_instrument_param
+
 
 class Thermo49i:
     def __init__(self, config: dict, name: str='49i', get_set_config: bool=False) -> None:
@@ -33,19 +35,19 @@ class Thermo49i:
 
         try:
             # configure logging
-            self.logger = logging.getLogger(f"Thermo49i:{self.name}")
+            self.logger = logging.getLogger(f"Thermo49i:{name}")
 
             # read instrument control properties for later use
             self._name = name
-            self._id = config[name]['id'] + 128
-            self._serial_number = config[name]['serial_number']
-            self._get_config = config[name]['get_config']
-            self._set_config = config[name]['set_config']
-            self._get_data = config[name]['get_data']
+            self._id = get_instrument_param(config, name, 'id') + 128
+            self._serial_number = get_instrument_param(config, name, 'serial_number')
+            self._get_config = get_instrument_param(config, name, 'get_config')
+            self._set_config = get_instrument_param(config, name, 'set_config')
+            self._get_data = get_instrument_param(config, name, 'get_data')
 
             self.logger.info(f"Initialize Thermo 49i (name: {self._name}  S/N: {self._serial_number})")
 
-            self._serial_com = config.get(name, {}).get('serial', None)
+            self._serial_com = get_instrument_param(config, name, 'serial')
             if self._serial_com:
                 # configure serial port
                 port = config[name]['port']
@@ -60,25 +62,25 @@ class Thermo49i:
                 self.logger.info(f"Serial port {port} successfully opened and closed.")
             else:
                 # configure tcp/ip
-                self._sockaddr = (config[name]['socket']['host'],
-                                config[name]['socket']['port'])
-                self._socktout = config[name]['socket']['timeout']
-                self._socksleep = config[name]['socket']['sleep']
+                self._sockaddr = (get_instrument_param(config, name, 'socket')['host'],
+                                get_instrument_param(config, name, 'socket')['port'])
+                self._socktout = get_instrument_param(config, name, 'socket')['timeout']
+                self._socksleep = get_instrument_param(config, name, 'socket')['sleep']
 
             root = Path(config["paths"]["root"]).expanduser()
 
             # configure data collection and reporting
-            self._sampling_interval = config[name]['sampling_interval']
-            self.reporting_interval = config[name]['reporting_interval']
+            self._sampling_interval = get_instrument_param(config, name, 'sampling_interval')
+            self.reporting_interval = get_instrument_param(config, name, 'reporting_interval')
             if not (self.reporting_interval % 60)==0 and self.reporting_interval<=1440:
                 raise ValueError('reporting_interval must be a multiple of 60 and less or equal to 1440 minutes.')
 
             self.header = 'pcdate pctime time date flags o3 hio3 cellai cellbi bncht lmpt o3lt flowa flowb pres\n'
 
             # configure saving, staging and remote transfer
-            self.data_path = root / config['data'] / config[name]['data_path']
-            self.staging_path = root / config['staging'] / config[name]['staging_path']
-            self.remote_path = config[name]['remote_path']
+            self.data_path = root / config['paths']['data'] / get_instrument_param(config, name, 'data_path')
+            self.staging_path = root / config['paths']['staging'] / get_instrument_param(config, name, 'staging_path')
+            self.remote_path = get_instrument_param(config, name, 'remote_path')
 
             # configure folders needed
             self.data_path.mkdir(parents=True, exist_ok=True)

@@ -8,10 +8,11 @@ def main():
         description='Send command to Thermo 49i and receive response.')
     parser.add_argument("--config", default="config_test.yaml")
     parser.add_argument('--cmd',
+                        default="o3",
                         help='Command to be sent (e.g., o3)')
     args = parser.parse_args()
 
-    config = load_config(config_file='pydaq.yaml')
+    config = load_config(config_file=args.config)
     tei49i = Thermo49i(config=config)
 
     # setup logging

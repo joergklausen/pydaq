@@ -1,0 +1,83 @@
+simulate: true
+
+paths:
+  root: ~/Documents/pydaq
+  data: data
+  staging: staging
+  logging: logs
+
+logging:
+# NB: specify file relative to root
+  file_name: pydaq.log
+  level_console: INFO
+  level_file: ERROR
+
+sftp:
+# NB: specify local_source relative to root
+  host: sftp.meteoswiss.ch
+  usr: gaw_kenya
+  key: ~/.ssh/private-open-ssh-4096-mkn.ppk
+  remote_path: '.' # e.g., './nrb', use available remote folder
+  proxy:
+      socks5:             # proxy url (leave empty if no proxy is used)
+      port: 1080
+
+instruments:
+  - name: 49i
+    # NB: [set avg time 3] must be compatible with lrec per
+    # NB: [set lrec per 1] must correspond to sampling_interval
+    # NB: [set lrec format 0] ASCII no labels
+    # NB: [serial_timeout] seconds
+    # NB: [sampling_interval] minutes. How often should data be requested from instrument?
+    # NB: [reporting_interval] minutes. How often should files be saved, staged and transfered?
+    # NB: specify data, staging relative to root
+    class: instr.thermo.Thermo49i
+    params:
+      id: 49
+      serial_number: #49I-B1NAA-12103910681
+      socket:
+        host: 192.168.0.8
+        port: 9880
+        timeout: 5
+        sleep: 0.1
+      get_config:
+        - date
+        - time
+        - mode
+        - gas unit
+        - temp comp
+        - pres comp
+        - range
+        - format
+        - avg time
+        - lrec per
+        - lrec format
+        - o3 coef
+        - o3 bkg
+      set_config:
+        - set mode remote
+        - set gas unit ppb
+        - set temp comp on
+        - set pres comp on
+        - set range 1
+        - set format 00
+        - set avg time 3
+        - set lrec per 1
+        - set lrec format 0
+        - set save params
+      get_data: lr00
+      sampling_interval: 1
+      reporting_interval: 60
+      data_path: 49i
+      staging_path: 49i
+      remote_path: 49i
+
+  # - name: fidas
+  #   class: instruments.instrument_fidas.Fidas200TCP
+  #   params:
+  #     ip: 192.168.1.100
+  #     port: 23
+  #     output_interval: 600
+  #     read_params: [60, 61, 64]
+  #     setup_params: {}
+  #     poll_interval: 60
