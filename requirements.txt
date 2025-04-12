@@ -1,0 +1,10 @@
+colorama
+paramiko
+polars
+pyserial
+pyyaml
+requests
+schedule
+sockslib
+paho-mqtt
+numpy

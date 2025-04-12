@@ -1,0 +1,130 @@
+simulate: true
+
+paths:
+  root: ~/Documents/pydaq
+  data: data
+  staging: staging
+  logging: logs
+
+logging:
+# NB: specify file relative to root
+  file_name: pydaq.log
+  level_console: INFO
+  level_file: ERROR
+
+sftp:
+# NB: specify local_source relative to root
+  host: sftp.meteoswiss.ch
+  usr: gaw_kenya
+  key: ~/.ssh/private-open-ssh-4096-mkn.ppk
+  remote_path: '.' #'./nrb'
+  proxy:
+      socks5:             # proxy url (leave empty if no proxy is used)
+      port: 1080
+
+instruments:
+  - name: 49i
+    # NB: [set avg time 3] must be compatible with lrec per
+    # NB: [set lrec per 1] must correspond to sampling_interval
+    # NB: [set lrec format 0] ASCII no labels
+    # NB: [serial_timeout] seconds
+    # NB: [sampling_interval] minutes. How often should data be requested from instrument?
+    # NB: [reporting_interval] minutes. How often should files be saved, staged and transfered?
+    # NB: specify data, staging relative to root
+    class: instr.thermo.Thermo49i
+    params:
+      id: 49
+      serial_number: #49I-B1NAA-12103910681
+      socket:
+        host: 192.168.2.14
+        port: 9880
+        timeout: 5
+        sleep: 0.1
+      get_config:
+        - date
+        - time
+        - mode
+        - gas unit
+        - temp comp
+        - pres comp
+        - range
+        - format
+        - avg time
+        - lrec per
+        - lrec format
+        - o3 coef
+        - o3 bkg
+      set_config:
+        - set mode remote
+        - set gas unit ppb
+        - set temp comp on
+        - set pres comp on
+        - set range 1
+        - set format 00
+        - set avg time 3
+        - set lrec per 1
+        - set lrec format 0
+        - set save params
+      get_data: lr00
+      sampling_interval: 1
+      reporting_interval: 60
+      output_interval: 600  # fix reference
+      poll_interval: 60 # fix reference
+      data_path: 49i
+      staging_path: 49i
+      remote_path: 49i
+
+  - name: fidas
+    class: instruments.instrument_fidas.Fidas200TCP
+    params:
+      ip: 192.168.1.100
+      port: 23
+      output_interval: 600
+      read_params: [60, 61, 64]
+      setup_params: {}
+      poll_interval: 60
+
+  - name: ae33
+    class: instruments.instrument_ae33.AE33
+    params:
+      ip: 192.168.1.102
+      port: 23
+      output_interval: 600
+      poll_interval: 60
+      config_commands:
+        - "SETCONFIG SAMPLE_INTERVAL 60"
+        - "SETCONFIG AVERAGING_TIME 60"
+      realtime_fields: [BC, UVPM]
+
+  - name: ae31
+    class: instruments.instrument_ae31.AE31
+    params:
+      port: /dev/ttyUSB0
+      baudrate: 9600
+      output_interval: 3600
+      poll_interval: 300
+
+  - name: ne300
+    class: instruments.instrument_neph.NEPHWrapper
+    params:
+      config:
+        type: NE-300
+        serial_number: 123456
+        serial_id: 1
+        socket:
+          host: 192.168.1.103
+          port: 10001
+          timeout: 5
+        get_data_interval: 600
+        reporting_interval: 600
+        zero_check_duration: 10
+        span_check_duration: 10
+        staging_zip: false
+        verbosity: 0
+        protocol: acoem
+        data_log:
+          parameters: [1, 1450000, 1525000, 1635000, 1450090, 1525090, 1635090]
+          wavelengths: [450, 525, 635, 450, 525, 635, 635]
+          angles: [0, 0, 0, 0, 90, 90, 90]
+          interval: 300
+      poll_interval: 300
