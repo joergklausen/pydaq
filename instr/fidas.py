@@ -1,3 +1,6 @@
+# Instrument setup
+# > 'accessories' > IADS > change from 'remove volatile/moisture compensation' to OFF
+# > Control Panel > 
 
 
 # Text file format Fidas:
@@ -6,7 +9,7 @@ header = ['Date',
 'Comment',
 'PM1',
 'PM2.5',
-'PM4',
+'PM4',        
 'PM10',
 'PMtotal',
 'Number Concentration',

@@ -142,7 +142,7 @@ class Thermo49i:
                 while True:
                     data = s.recv(1024)
                     rcvd = rcvd + data
-                    if b'\x0D' in data:
+                    if b'\x00' in data:
                         break
 
             rcvd = rcvd.decode()
@@ -156,7 +156,7 @@ class Thermo49i:
 
         except Exception as err:
             self.logger.error(err)
-            return str()
+            return err
 
 
     def serial_comm(self, cmd: str, tidy=True) -> str:

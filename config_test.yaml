@@ -36,7 +36,7 @@ instruments:
       id: 49
       serial_number: #49I-B1NAA-12103910681
       socket:
-        host: 192.168.0.8
+        host: 192.168.100.2
         port: 9880
         timeout: 5
         sleep: 0.1
@@ -75,7 +75,7 @@ instruments:
   # - name: fidas
   #   class: instruments.instrument_fidas.Fidas200TCP
   #   params:
-  #     ip: 192.168.1.100
+  #     ip: 192.168.100.3
   #     port: 23
   #     output_interval: 600
   #     read_params: [60, 61, 64]
