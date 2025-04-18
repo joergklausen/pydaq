@@ -63,7 +63,7 @@ from pymodbus.client.tcp import ModbusTcpClient
 from pymodbus.exceptions import ModbusException
 
 class ModbusTCPDriver:
-    def __init__(self, ip: str, port: int = 502, unit_id: int = 1):
+    def __init__(self, ip: str, port: int = 11231, unit_id: int = 1):
         """
         Initialize a Modbus TCP connection.
 
@@ -92,7 +92,7 @@ class ModbusTCPDriver:
     def read_holding_registers(self, address: int, count: int):
         """Read holding registers starting at address."""
         try:
-            response = self.client.read_holding_registers(address, count, unit=self.unit_id)
+            response = self.client.read_holding_registers(address=address, count=count, slave=self.unit_id)
             if response.isError():
                 raise ModbusException(f"Error reading registers at {address}: {response}")
             return response.registers
@@ -103,7 +103,7 @@ class ModbusTCPDriver:
     def write_single_register(self, address: int, value: int):
         """Write a single value to one holding register."""
         try:
-            response = self.client.write_register(address, value, unit=self.unit_id)
+            response = self.client.write_register(address=address, value=value, slave=self.unit_id)
             if response.isError():
                 raise ModbusException(f"Error writing to register {address}: {response}")
             return True
@@ -120,8 +120,8 @@ class ModbusTCPDriver:
 
 
 if __name__ == "__main__":
-    ip = "192.168.100.3"  # your instrument's IP
-    port = 502            # default Modbus TCP port
+    ip = "192.168.0.179"  # your instrument's IP
+    port = 11231 #502            # default Modbus TCP port
     unit_id = 1           # check your instrument docs
 
     with ModbusTCPDriver(ip, port, unit_id) as driver:

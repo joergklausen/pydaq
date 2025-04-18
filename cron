@@ -21,7 +21,7 @@
 # For more information see the manual pages of crontab(5) and cron(8)
 # 
 # m h  dom mon dow   command
-@reboot /bin/bash /home/gaw/git/nrbdaq/nrbdaq.sh > /dev/null
+@reboot /bin/bash /home/admin/git/nrbdaq/nrbdaq.sh > /dev/null
 #@reboot /bin/bash /home/gaw/git/nrbdaq/nrbdaq.sh 2>> /home/gaw/Documents/nrbdaq/nrbdaq.log
 @reboot echo "$(date +\%FT\%T), INFO, cron@reboot, == NRBDAQ started ===" >> /home/gaw/Documents/nrbdaq/nrbdaq.log 2>&1
 0,5,10,15,20,25,30,35,40,45,50,55 * * * * /bin/bash /home/gaw/git/nrbdaq/nrbdaq.sh >> /home/gaw/Documents/nrbdaq/nrbdaq.log
