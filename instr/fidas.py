@@ -120,8 +120,8 @@ class ModbusTCPDriver:
 
 
 if __name__ == "__main__":
-    ip = "192.168.0.179"  # your instrument's IP
-    port = 11231 #502            # default Modbus TCP port
+    ip = "192.168.0.216"  # your instrument's IP
+    port = 502            # default Modbus TCP port
     unit_id = 1           # check your instrument docs
 
     with ModbusTCPDriver(ip, port, unit_id) as driver:
