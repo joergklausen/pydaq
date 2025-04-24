@@ -119,6 +119,134 @@ class ModbusTCPDriver:
         self.close()
 
 
+
+
+
+
+import os
+import re
+import time
+import logging
+import argparse
+import schedule
+from datetime import datetime
+from typing import Callable
+import polars as pl
+
+
+def setup_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+    )
+
+
+def read_from_instrument() -> str:
+    # Replace this with your actual instrument I/O
+    return '6082<sendVal 0=0.0;1=1.0;2=2.0;8=4.8;14=42.4;74=0.0>3E'
+
+
+def collect_and_aggregate_polars(
+    read_func: Callable[[], str],
+    interval_seconds: int,
+    output_dir: str
+) -> None:
+    """
+    Collects instrument data for 1 minute, parses into a Polars DataFrame,
+    computes medians, and saves results to a timestamped CSV file.
+    """
+    logging.info("Collecting data...")
+    rows = []
+    end_time = time.time() + 60
+
+    while time.time() < end_time:
+        line = read_func()
+        match = re.search(r"<sendVal (.+?)>", line)
+        if match:
+            payload = match.group(1)
+            parsed = {}
+            for item in payload.split(";"):
+                if "=" not in item:
+                    continue
+                key_str, value_str = item.split("=")
+                try:
+                    key = f"v{int(key_str)}"
+                    value = float(value_str)
+                    if not value_str.lower() == "nan":
+                        parsed[key] = value
+                except ValueError:
+                    continue
+            if parsed:
+                rows.append(parsed)
+        time.sleep(interval_seconds)
+
+    if not rows:
+        logging.warning("No valid data collected in this interval.")
+        return
+
+    df = pl.DataFrame(rows).fill_nan(None)
+    median_row = df.select(pl.all().median()).to_dict(as_series=False)
+
+    now = datetime.utcnow()
+    timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+    filename = os.path.join(output_dir, f"fidas-{now.strftime('%Y%m%d%H')}.csv")
+
+    sorted_keys = sorted(median_row.keys())
+    file_exists = os.path.exists(filename)
+
+    os.makedirs(output_dir, exist_ok=True)
+    with open(filename, "a") as f:
+        if not file_exists:
+            f.write("timestamp," + ",".join(sorted_keys) + "\n")
+        line = timestamp + "," + ",".join(
+            f"{median_row[k]:.4f}" if median_row[k] is not None else "NaN"
+            for k in sorted_keys
+        )
+        f.write(line + "\n")
+
+    logging.info("Wrote 1-minute aggregate to %s", filename)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Fidas Data Collector")
+    parser.add_argument("--interval", type=int, default=5,
+                        help="Sampling interval in seconds (default: 5)")
+    parser.add_argument("--output", type=str, default=".",
+                        help="Output directory for CSV files")
+    args = parser.parse_args()
+
+    setup_logging()
+    logging.info("Starting Fidas data collector...")
+    schedule.every(1).minutes.do(
+        collect_and_aggregate_polars,
+        read_func=read_from_instrument,
+        interval_seconds=args.interval,
+        output_dir=args.output
+    )
+
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 if __name__ == "__main__":
     ip = "192.168.0.216"  # your instrument's IP
     port = 502            # default Modbus TCP port

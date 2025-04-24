@@ -1,10 +1,11 @@
 import os
-from pydaq.instr.thermo import Thermo49i
-from pydaq.utils.utils import load_config, setup_logging
+from instr.thermo import Thermo49i
+from utils.utils import load_config
+from utils.logging_config import setup_logging
 
 
-config = load_config(config_file='nrbdaq.yaml')
-tei49i = Thermo49i(config=config)
+config = load_config(config_file='config.yaml')
+tei49i = Thermo49i(config=config, name='49i')
 
 # setup logging
 logfile = os.path.join(os.path.expanduser(config['root']), config['logging']['file'])

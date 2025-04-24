@@ -8,3 +8,5 @@ schedule
 sockslib
 paho-mqtt
 numpy
+matplotlib
+flask

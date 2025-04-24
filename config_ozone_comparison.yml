@@ -1,0 +1,60 @@
+paths:
+  root: ~/Documents/pydaq
+  data: data
+  staging: staging
+  logging: logs
+
+logging:
+# NB: specify file relative to root
+  file_name: pydaq.log
+  level_console: INFO
+  level_file: ERROR
+
+instruments:
+  - name: 49i_ps
+    class: thermo.Themo49i
+  # NB: [serial_timeout] seconds
+    params:
+      id: 49
+      serial_number: s/n calibrator
+      socket:
+        host: 192.168.2.14
+        port: 9880
+        timeout: 5
+        sleep: 0.1
+      get_config:
+        - mode
+        - gas unit
+        - temp comp
+        - pres comp
+        - range
+        - o3 coef
+        - o3 bkg
+      get_data: o3
+      simulate: True
+
+  - name: 49i
+  # NB: [serial_timeout] seconds
+    class: thermo.Thermo49i
+    params:
+      id: 49
+      serial_number: 49I-B1NAA-12103910681
+      socket:
+        host: 192.168.2.14
+        port: 9880
+        timeout: 5
+        sleep: 0.1
+      get_config:
+        - mode
+        - gas unit
+        - temp comp
+        - pres comp
+        - range
+        - o3 coef
+        - o3 bkg
+      get_data: o3
+      simulate: True
+# future
+# [dxs]
+# host = https://servicedevt.meteoswiss.ch/dxs/api/v1/fileupload
+# key = ~/.ssh/dxs_key.txt

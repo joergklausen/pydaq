@@ -1,0 +1,120 @@
+# NB: local absolute or relative path for data on disk
+root: ~/Documents/nrbdaq
+
+logging:
+# NB: specify file relative to root
+  file: nrbdaq.log
+  level_console: INFO
+  # level_file: ERROR
+  level_file: ERROR
+
+# data path
+data: data
+
+# staging area for transfer, relative to root
+staging: staging
+
+sftp:
+# NB: specify local_source relative to root
+  host: sftp.meteoswiss.ch
+  usr: gaw_kenya
+  key: ~/.ssh/private-open-ssh-4096-mkn.ppk
+  remote_path: './nrb'
+  proxy:
+      socks5:             # proxy url (leave empty if no proxy is used)
+      port: 1080
+
+AE31:
+# NB: Configure AE31 to use the default settings (9600, 8, 1, N).
+# NB: [serial_timeout] seconds
+# NB: [sampling_interval] minutes
+# NB: [reporting_interval] minutes
+# NB: specify data, staging, archive relative to root
+  serial_port: /dev/ttyUSB0
+  serial_timeout: 270
+  sampling_interval: 5
+  reporting_interval: 60
+  data_path: ae31
+  staging_path: ae31
+  remote_path: ae31
+  # archive: archive/ae31
+
+Aurora3000:
+# NB: [serial_timeout] seconds
+# NB: [sampling_interval] minutes
+# NB: [reporting_interval] minutes
+# NB: specify data, staging, archive relative to root
+  serial_port: /dev/ttyUSB1
+  serial_baudrate: 19200
+  serial_timeout: 1
+  sampling_interval: 1
+  reporting_interval: 60
+  data_path: aurora3000
+  staging_path: aurora3000
+  remote_path: aurora3000
+
+AVO:
+# NB: list deployments of AirVisual Outdoor unit or which data should be downloaded as url_{site}
+# NB: specify data, staging, archive relative to root
+# NB: [download_interval] minutes
+  urls:
+    url_mogogosiek: https://device.iqair.com/v2/64b78e3ed49ffdbbf25ce862
+    url_nairobi: https://device.iqair.com/v2/64b79227b6f7b1125b019970
+    url_bomet: https://device.iqair.com/v2/64ad7a78e939e8f45b826839
+  data_path: avo
+  staging_path: avo
+  remote_path: avo
+  download_interval: 360
+
+49i:
+# NB: [set avg time 3] must be compatible with lrec per
+# NB: [set lrec per 1] must correspond to sampling_interval
+# NB: [set lrec format 0] ASCII no labels
+# NB: [serial_timeout] seconds
+# NB: [sampling_interval] minutes. How often should data be requested from instrument?
+# NB: [reporting_interval] minutes. How often should files be saved, staged and transfered?
+# NB: specify data, staging, archive relative to root
+  id: 49
+  serial_number: 49I-B1NAA-12103910681
+  socket:
+    host: 192.168.2.14
+    port: 9880
+    timeout: 5
+    sleep: 0.1
+  get_config:
+    - date
+    - time
+    - mode
+    - gas unit
+    - temp comp
+    - pres comp
+    - range
+    - format
+    - avg time
+    - lrec per
+    - lrec format
+    - o3 coef
+    - o3 bkg
+  set_config:
+    - set mode remote
+    - set gas unit ppb
+    - set temp comp on
+    - set pres comp on
+    - set range 1
+    - set format 00
+    - set avg time 3
+    - set lrec per 1
+    - set lrec format 0
+    - set save params
+  get_data: lr00
+  sampling_interval: 1
+  reporting_interval: 60
+  data_path: 49i
+  staging_path: 49i
+  remote_path: 49i
+  # archive: archive/49i
+
+# future
+# [dxs]
+# host = https://servicedevt.meteoswiss.ch/dxs/api/v1/fileupload
+# key = ~/.ssh/dxs_key.txt
