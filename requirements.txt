@@ -10,3 +10,4 @@ paho-mqtt
 numpy
 matplotlib
 flask
+pyarrow
