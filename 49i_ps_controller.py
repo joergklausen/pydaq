@@ -56,7 +56,7 @@ class InstrumentController:
         self.analyzer_name = self.analyzer.name
         # self.analyzer_ip = self.analyzer._sockaddr
 
-        self.output_csv =  output_csv or os.path.join(os.path.expanduser(self.config['paths']['root']), self.config['paths']['data'], f"ozone_comparison-{datetime.now().strftime("%Y%m%d%H%M")}.csv")
+        self.output_csv = output_csv or os.path.join(os.path.expanduser(self.config['paths']['root']), self.config['paths']['data'], f"ozone_comparison-{datetime.now().strftime('%Y%m%d%H%M')}.csv")
         os.makedirs(os.path.dirname(self.output_csv), exist_ok=True)
 
         self.running = False
