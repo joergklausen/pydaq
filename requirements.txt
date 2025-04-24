@@ -11,3 +11,4 @@ numpy
 matplotlib
 flask
 pyarrow
+scipy
