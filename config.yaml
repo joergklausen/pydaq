@@ -1,4 +1,8 @@
-simulate: true
+# This is a template for .yaml configuration files.
+# Copy and paste to a station-specific .yaml file.
+# It is suggested to use 3-letter station acronym as the name.
+
+simulate: true              # specify if the DAQ should simulate instruments
 
 # local paths configuration
 local:
@@ -14,23 +18,21 @@ logging:
   level_file: ERROR
 
 # data transfer configuration
-transfer:
-  protocol: sftp            # options: sftp, mqtt
+transfer:                   # all protocols listed will be used, comment out to select 
   sftp:
     host: sftp.meteoswiss.ch
     usr: gaw_kenya
-    key: ~/.ssh/private-open-ssh-4096-mkn.ppk
+    key_path: ~/.ssh/private-open-ssh-4096-mkn.ppk
     remote_path: 'tests'    # remote path to store data
-    proxy:
-        socks5:             # proxy url (leave empty if no proxy is used)
-        port: 1080
-  mqtt:
-    host: mqtt.example.com
-    port: 1883
-    qos: 1
-    retain: false
-    delay: 0.1
-    topic: gaw_kenya/tests
+    proxy_url:              # proxy url (leave empty if no proxy is used)
+    proxy_port: 1080
+  s3:
+    endpoint_url: 'https://servicedevt.meteoswiss.ch/'
+    aws_s3_bucket_name: 'ch.meteoswiss.gawkenya'
+    aws_region: 'eu-central-1'
+    aws_access_key_id: 'gawkenya_native'
+    aws_secret_access_key: ~/.aws/minio-devt-secret-key
+    default_prefix: mkn
 
 # local serial ports configuration
 ports:
@@ -52,7 +54,8 @@ ports:
 # attached instruments configuration
 instruments:
   - name: 49i
-    class: instr.thermo.Thermo49i
+    class: instr.thermo.Thermo
+    model: 49i
     params:
       id: 49
       serial_number: #49I-B1NAA-12103910681

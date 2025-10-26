@@ -12,3 +12,4 @@ matplotlib
 flask
 pyarrow
 scipy
+sockslib
