@@ -84,15 +84,14 @@ instruments:
           - o3 coef
           - o3 bkg
       set_config:
-          - set mode remote
           - set gas unit ppb
           - set range 1
           - set temp comp on
           - set pres comp on
           - set format 00
-          - set avg time 3
-          - set lrec format 00 02
-      data_header: pcdate pctime time date o3 flags cellai cellbi bncht lmpt o3lt flowa flowb pres
+          # - set avg time 3              # do not set here, implemented in init based on sampling_interval_seconds
+          # - set lrec format 00 02       # do not set here, implemented in init based on sampling_interval_seconds
+      header: pcdate pctime time date o3 flags cellai cellbi bncht lmpt o3lt flowa flowb pres
       sampling_interval_seconds: 60       # seconds. How often should data be requested from instrument?
       reporting_interval_minutes: 60      # minutes.
       data_path: tei49c
@@ -129,15 +128,14 @@ instruments:
         - o3 coef
         - o3 bkg
       set_config:
-        - set mode remote
         - set gas unit ppb
         - set temp comp on
         - set pres comp on
         - set range 1
         - set format 00
-        - set lrec format 0
         # - set avg time 3        # code list. NB: do not set here, implemented in init based on sampling_interval_seconds
         # - set lrec per 1        # code list. NB: do not set here, implemented in init based on sampling_interval_seconds
+      header: pcdate pctime time date flags o3 hio3 cellai cellbi bncht lmpt o3lt flowa flowb pres
       get_data: lr00
       sampling_interval_seconds: 60       # seconds.
       reporting_interval_minutes: 60      # minutes
