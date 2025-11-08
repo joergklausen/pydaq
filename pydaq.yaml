@@ -1,0 +1,253 @@
+# This is a template for .yaml configuration files.
+# Copy and paste to a station-specific .yaml file.
+# It is suggested to use 3-letter station acronym as the name.
+#
+# The configuration follows the work-flow during the data acquisition:
+# sample data from instrument > aggregate data to some average > save data to file > stage data file > report/transfer data file
+#
+# sampling_interval_seconds is specified in seconds.
+# aggregation_period is specified in minutes.
+# reporting_interval_minutes is specified in minutes.
+#
+# author: joerg.klausen@meteoswiss.ch
+
+# specify if the DAQ should simulate instruments
+simulate: true
+
+# local paths configuration
+local:
+  root: tests/results
+  data: data                # specify folder relative to <root> directory
+  staging: staging          # specify folder relative to <root> directory
+  logging: logs             # specify folder relative to <root> directory
+
+# logging configuration
+logging:
+  file_name: pydaq.log      # specify file relative to <logging> directory
+  level_console: INFO
+  level_file: ERROR
+
+# data transfer configuration
+transfer:                   # all protocols listed will be used, comment out to select 
+  sftp:
+    host: sftp.meteoswiss.ch
+    usr: gaw_kenya
+    key_path: ~/.ssh/private-open-ssh-4096-mkn.ppk
+    remote_path: 'tests'    # remote path to store data
+    proxy_url:              # proxy url (leave empty if no proxy is used)
+    proxy_port: 1080
+  s3:
+    endpoint_url: 'https://servicedevt.meteoswiss.ch/'
+    aws_s3_bucket_name: 'ch.meteoswiss.gawkenya'
+    aws_region: 'eu-central-1'
+    aws_access_key_id: 'gawkenya_native'
+    aws_secret_access_key: ~/.aws/minio-devt-secret-key
+    default_prefix: mkn
+
+# local serial ports configuration
+ports:
+  COM1:
+    protocol: RS232             # don't change!
+    baudrate: 9600
+    bytesize: 8
+    stopbits: 1
+    parity: N
+    timeout: 0.1                # seconds, how long to wait for a response
+  COM2:
+    protocol: RS232             # don't change!
+    baudrate: 9600
+    bytesize: 8
+    stopbits: 1
+    parity: N
+    timeout: 0.1                # seconds, how long to wait for a response
+
+# attached instruments configuration
+instruments:
+  - name: 49c
+    class: instr.thermo.Thermo
+    model: 49c
+    params:
+      id: 49
+      serial_number: 49C-58106-318
+      serial: COM4
+      get_config:
+          - date
+          - time
+          - mode
+          - gas unit
+          - range
+          - avg time
+          - temp comp
+          - pres comp
+          - format
+          - lrec format
+          - o3 coef
+          - o3 bkg
+      set_config:
+          - set mode remote
+          - set gas unit ppb
+          - set range 1
+          - set temp comp on
+          - set pres comp on
+          - set format 00
+          - set avg time 3
+          - set lrec format 00 02
+      data_header: pcdate pctime time date o3 flags cellai cellbi bncht lmpt o3lt flowa flowb pres
+      sampling_interval_seconds: 60       # seconds. How often should data be requested from instrument?
+      reporting_interval_minutes: 60      # minutes.
+      data_path: tei49c
+      staging_path: tei49c
+      staging_zip: True
+      remote_path: tei49c
+
+  - name: 49i
+    class: instr.thermo.Thermo
+    model: 49i
+    params:
+      id: 49
+      serial_number: #49I-B1NAA-12103910681
+      communication: socket     # options: socket, serial
+      # serial: COM1
+      socket:
+        mode: tcp           # options: tcp, udp (not tested)
+        host: 192.168.100.2
+        port: 9880
+        timeout: 5
+        sleep: 0.1
+      get_config:
+        - date
+        - time
+        - mode
+        - gas unit
+        - temp comp
+        - pres comp
+        - range
+        - format
+        - avg time
+        - lrec per
+        - lrec format
+        - o3 coef
+        - o3 bkg
+      set_config:
+        - set mode remote
+        - set gas unit ppb
+        - set temp comp on
+        - set pres comp on
+        - set range 1
+        - set format 00
+        - set lrec format 0
+        # - set avg time 3        # code list. NB: do not set here, implemented in init based on sampling_interval_seconds
+        # - set lrec per 1        # code list. NB: do not set here, implemented in init based on sampling_interval_seconds
+      get_data: lr00
+      sampling_interval_seconds: 60       # seconds.
+      reporting_interval_minutes: 60      # minutes
+      data_path: 49i
+      staging_path: 49i
+      staging_zip: true
+      remote_path: 49i            # optional; defaults to 'name'
+      filename_extension: dat     # one of dat|txt|parquet|None
+
+  - name: fidas
+    class: instr.fidas.Fidas
+    params:
+      serial_number: 6082
+      communication: socket     # options: socket, serial (not implemented)
+      socket:
+          host: 0.0.0.0
+          port: 56790
+          buffer_size: 8192
+          timeout: 0.5
+          sleep: 0.5
+      # output_interval: 600
+      # read_params: [60, 61, 64]
+      # setup_params: {}
+      sampling_interval_seconds: 5             # seconds. How often should data be read from instrument?
+      aggregation_period_minutes: 1            # minutes. What aggregate of data should be stored?
+      reporting_interval_minutes: 60
+      filename_extension: parquet # one of dat|txt|parquet|None
+      data_path: fidas
+      staging_path: fidas
+      # staging_zip: True
+      remote_path: fidas
+
+  - name: ne300
+    class: instr.ecotech.NE300
+    type: NE300
+    protocol: acoem
+    serial_id: 0
+    serial_number: 23-0690
+    mac_number: 00:30:55:0A:78:78
+    socket:
+        host: 192.168.3.149
+        port: 32783
+        timeout: 5
+        sleep: 0.5
+    data_log:
+        parameters: [1000000, 2000000, 3000000, 6000000, 7000000, 8000000,
+                     11000000, 12000000, 13000000, 14000000, 15000000, 16000000,
+                     17000000, 18000000, 19000000, 20000000, 21000000, 26000000,
+                     5001, 5002, 5003, 5004, 5005, 5006,
+                     5010, 6007, 6008, 6001, 6002, 6003,
+                     4035, 4036]
+        wavelengths: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,]
+        angles: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,]
+        interval: 60
+    sampling_interval_seconds: 5            # minutes. logger retrieval interval
+    reporting_interval_minutes: 10
+    data_path: ne300
+    staging_path: ne300
+    staging_zip: True
+    remote_path: ne300
+    verbosity: 2                    # 0: silent, 1: medium, 2: full
+    zero_span_check_interval: 780   # set this to 4380 (=73 hrs) for production
+    zero_check_duration: 20         # set this to 30 for production
+    span_check_duration: 20         # set this to 30 for production
+
+g2401:
+    class: instr.g2401.G2401
+    type: Picarro G2401
+    serial_number: 3293-CFKADS2320
+    socket:
+        host: 192.168.4.102
+        port: 51020
+        timeout: 1
+        sleep: 0.5
+    netshare: DataLog_User_Sync
+    days_to_sync: 7                 # file synching from network drives to data directory
+    buckets: daily                  # Determines the expected directory structure and how files are found.
+    reporting_interval_minutes: 10          # minutes. How often should source be scanned and new files staged?
+    data_path: g2401
+    staging_path: g2401
+    staging_zip: True
+    remote_path: g2401
+
+ae33:
+    class: instr.magee.AE33
+    type: Magee AE33
+    id: 169
+    serial_number: AE33-S10-01394
+    MAC: C4-00-AD-D8-0A-AC
+    socket:
+        host: 192.168.3.137
+        port: 8002
+        timeout: 0.5
+        sleep: 0.5
+    get_config:
+        - HELLO
+    set_datetime: False             # Should date and time be set when initializing the instrument?
+    sampling_interval_seconds: 1            # minutes. How often should data be requested from instrument?
+    reporting_interval_minutes: 10
+    data_path: ae33
+    staging_path: ae33
+    staging_zip: True
+    remote_path: ae33
+
+meteo:
+    type: METEO
+    source: c:/ftproot/meteo        # directory where data can be found
+    pattern: VRXA00
+    data_path: meteo
+    staging_path: meteo
+    reporting_interval_minutes: 10
+    staging_zip: False
+    remote_path: meteo
