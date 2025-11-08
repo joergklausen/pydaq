@@ -1,32 +1,34 @@
 # tests/test_utils_config.py
 from __future__ import annotations
-from pathlib import Path
+
 import hashlib
+from pathlib import Path
+
 import pytest
 
-from utils.config import load_yaml_config
+from utils.config import load_config
 
 
-def _find_test_yaml() -> Path:
+def _find_config() -> Path:
     """
-    Locate the repo's test.yaml without modifying it.
+    Locate the repo's config.yaml without modifying it.
     Priority:
-      1) tests/config/test.yaml
-      2) config/test.yaml
-      3) tests/test.yaml
-      4) test.yaml (repo root)
+      1) tests/config/config.yaml
+      2) config/config.yaml
+      3) tests/config.yaml
+      4) config.yaml (repo root)
     """
     here = Path(__file__).resolve().parent
     candidates = [
-        here / "config" / "test.yaml",
-        here.parent / "config" / "test.yaml",
-        here / "test.yaml",
-        here.parent / "test.yaml",
+        here / "config" / "config.yaml",
+        here.parent / "config" / "config.yaml",
+        here / "config.yaml",
+        here.parent / "config.yaml",
     ]
     for p in candidates:
         if p.is_file():
             return p
-    pytest.skip("Could not locate test.yaml for config tests.")
+    pytest.skip("Could not locate config.yaml for config tests.")
 
 
 def _sha256(path: Path) -> str:
@@ -39,16 +41,16 @@ def _sha256(path: Path) -> str:
 
 def test_load_nonexistent_config():
     with pytest.raises(FileNotFoundError):
-        load_yaml_config("/nonexistent/path/config.yaml")
+        load_config("/nonexistent/path/config.yaml")
 
 
 def test_load_existing_config():
-    cfg_path = _find_test_yaml()
+    cfg_path = _find_config()
     before = _sha256(cfg_path)  # guard: ensure we never mutate the file
 
-    config = load_yaml_config(cfg_path)
+    config = load_config(cfg_path)
     after = _sha256(cfg_path)
-    assert before == after, "test.yaml changed during the test run (must remain read-only)"
+    assert before == after, "config.yaml changed during the test run (must remain read-only)"
 
     assert isinstance(config, dict)
 

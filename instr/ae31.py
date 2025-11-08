@@ -1,6 +1,5 @@
 import logging
 import os
-import shutil
 import zipfile
 from datetime import datetime
 
@@ -76,31 +75,31 @@ class AE31:
             pass
 
     
-    def setup_schedules(self):
-        try:
-            # configure folders needed
-            os.makedirs(self.data_path, exist_ok=True)
-            os.makedirs(self.staging_path, exist_ok=True)
-            # os.makedirs(self.archive_path, exist_ok=True)
+    # def setup_schedules(self):
+    #     try:
+    #         # configure folders needed
+    #         os.makedirs(self.data_path, exist_ok=True)
+    #         os.makedirs(self.staging_path, exist_ok=True)
+    #         # os.makedirs(self.archive_path, exist_ok=True)
 
-            # configure data acquisition schedule
-            schedule.every(self.sampling_interval).minutes.at(':00').do(self.accumulate_data)
+    #         # configure data acquisition schedule
+    #         schedule.every(self.sampling_interval).minutes.at(':00').do(self.accumulate_data)
             
-            # configure saving and staging schedules
-            if self.reporting_interval==10:
-                self._file_timestamp_format = '%Y%m%d%H%M'
-                minutes = [f"{self.reporting_interval*n:02}" for n in range(6) if self.reporting_interval*n < 6]
-                for minute in minutes:
-                    schedule.every(1).hour.at(f"{minute}:01").do(self._save_and_stage_data)
-            elif self.reporting_interval==60:
-                self._file_timestamp_format = '%Y%m%d%H'
-                schedule.every(1).hour.at('00:01').do(self._save_and_stage_data)
-            elif self.reporting_interval==1440:
-                self._file_timestamp_format = '%Y%m%d'
-                schedule.every(1).day.at('00:00:01').do(self._save_and_stage_data)
+    #         # configure saving and staging schedules
+    #         if self.reporting_interval==10:
+    #             self._file_timestamp_format = '%Y%m%d%H%M'
+    #             minutes = [f"{self.reporting_interval*n:02}" for n in range(6) if self.reporting_interval*n < 6]
+    #             for minute in minutes:
+    #                 schedule.every(1).hour.at(f"{minute}:01").do(self._save_and_stage_data)
+    #         elif self.reporting_interval==60:
+    #             self._file_timestamp_format = '%Y%m%d%H'
+    #             schedule.every(1).hour.at('00:01').do(self._save_and_stage_data)
+    #         elif self.reporting_interval==1440:
+    #             self._file_timestamp_format = '%Y%m%d'
+    #             schedule.every(1).day.at('00:00:01').do(self._save_and_stage_data)
 
-        except Exception as err:
-            self.logger.error(err)
+    #     except Exception as err:
+    #         self.logger.error(err)
 
 
     def accumulate_data(self):
@@ -167,25 +166,6 @@ class AE31:
     def _save_and_stage_data(self):
         self._save_data()
         self._stage_file()
-
-    # def _stage_data(self):
-    #     """
-    #     Copy final data file to the staging area. 
-    #     Establish the timestamp of the previous (now complete) file, then copy it to the staging area.
-    #     """
-    #     if self.reporting_interval==1440:
-    #         timestamp = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
-    #     else:
-    #         timestamp = (datetime.now() - timedelta(hours=self.reporting_interval)).strftime('%Y%m%d%H')
-    #     file = f"ae31-{timestamp}.csv"
-    #     self.logger.debug(f"file to stage: {file}")
-    #     try:
-    #         if os.path.exists(os.path.join(self.data_path, file)):
-    #             dst = shutil.copyfile(src=os.path.join(self.data_path, file), 
-    #                             dst=os.path.join(self.staging_path, file))
-    #             self.logger.info(f"file staged: {dst}")
-    #     except Exception as err:
-    #         self.logger.error(err)
 
 
     def csv_to_df(self, file: str) -> pl.DataFrame:

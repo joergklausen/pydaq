@@ -1,6 +1,6 @@
 import os
 from instr.thermo import Thermo49i
-from utils.utils import load_config
+from utils.logging import load_config
 from utils.logging_config import setup_logging
 
 

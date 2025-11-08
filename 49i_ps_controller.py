@@ -15,7 +15,7 @@ from scipy.stats import linregress
 
 from instr.thermo import Thermo49i
 from utils.logging_config import setup_logging
-from utils.utils import load_config
+from utils.logging import load_config
 
 # ---------------- Placeholder for your driver functions ------------------
 # def set_value(instrument_ip, value_ppb):

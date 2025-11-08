@@ -30,7 +30,8 @@ class Thermo(Instrument):
         self._get_cfg_cmds = list(self._params.get("get_config", []))
 
         # configure instrument configuration commands
-        self._set_cfg_cmds = list(self._params.get("set_config", []))
+        self._set_cfg_cmds = ["set mode remote"]
+        self._set_cfg_cmds += list(self._params.get("set_config", []))
 
         # - set avg time tt  based on sampling_interval_seconds
         set_avg_time_dict = dict(zip((10, 20, 30, 60, 90, 120, 180, 240, 300), range(9)))

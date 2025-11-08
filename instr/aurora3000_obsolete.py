@@ -1,16 +1,20 @@
+"""
+Define a class Aurora3000 facilitating communication with an Ecotech Aurora3000 nephelometer.
+
+@author: joerg.klausen@meteoswiss.ch
+"""
+
 import logging
 import os
 import time
 import zipfile
 from datetime import datetime, timedelta
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
+import colorama
 import numpy as np
-import polars as pl
 import schedule
 import serial
-
-from pydaq.utils.utils import load_config, setup_logging
 
 
 class Aurora3000:
@@ -48,12 +52,12 @@ class Aurora3000:
 
             # store readings and timestamp
             # initialize data response and datetime stamp           
-            self._instant_readings = []
+            self._instant_readings: list[np.ndarray] = []
             self._dio_states = []
-            self._last_timestamp = None
-            self._data = str()
+            self._last_timestamp: Optional[datetime] = None
+            self._data: str = ""
             self._dtm = None
-            self.data_file = str()
+            self.data_file: str = ""
 
         except serial.SerialException as err:
             self.logger.error(f"Serial communication error: {err}")
@@ -61,7 +65,6 @@ class Aurora3000:
         except Exception as err:
             self.logger.error(f"General error: {err}")
             pass
-
 
     def setup_schedules(self):
         try:
@@ -90,8 +93,7 @@ class Aurora3000:
 
 
         except Exception as err:
-            self.logger.error(err)
-
+            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
 
     def serial_comm(self, cmd: str, sep: str=',') -> str:
         try:
@@ -106,58 +108,65 @@ class Aurora3000:
                 data = data.replace('\r\n\n', '\r\n').replace(", ", ",").replace(",", sep)
             return data
         except Exception as err:
-            self.logger.error(err)
-
+            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
+            return str()
 
     def read_new_data(self, sep: str=',') -> str:
         try:
-           return self.serial_comm('***D')
+            return self.serial_comm('***D')
         except Exception as err:
-            self.logger.error(err)
-
+            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
+            return str()
 
     def get_instrument_id(self, sep: str=',') -> str:
         try:
-           return self.serial_comm('ID0')
+            return self.serial_comm('ID0')
         except Exception as err:
-            self.logger.error(err)
-
+            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
+            return str()
 
     def get_current_data(self, sep: str=',') -> str:
         try:
-           return self.serial_comm('VI099')
+            return self.serial_comm('VI099')
         except Exception as err:
-            self.logger.error(err)
-
+            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
+            return str()
 
     def get_status_word(self, sep: str=',') -> str:
         try:
-           return self.serial_comm('VI088')
+            return self.serial_comm('VI088')
         except Exception as err:
-            self.logger.error(err)
-
+            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
+            return str()
 
     def parse_current_data(self, reading: str) -> Tuple[datetime, np.ndarray]:
         """Parses a comma-separated reading string into a datetime object and a numpy array of values."""
-        try:
-            parts = reading.split(',')
-            timestamp = datetime.strptime(parts[0], "%Y-%m-%d %H:%M:%S")
-            values = list(map(float, parts[1:-1]))
-            values.append(int(parts[-1], 16))    # Convert last element from hex to decimal
-            return timestamp, values
-        except Exception as err:
-            self.logger.error(err)
-
+        # try:
+        #     parts = reading.split(',')
+        #     timestamp = datetime.strptime(parts[0], "%Y-%m-%d %H:%M:%S")
+        #     values = list(map(float, parts[1:-1]))
+        #     values.append(int(parts[-1], 16))    # Convert last element from hex to decimal
+        #     return timestamp, values
+        # except Exception as err:
+        #     self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
+        parts = reading.split(',')
+        timestamp = datetime.strptime(parts[0], "%Y-%m-%d %H:%M:%S")
+        floats = [float(x) for x in parts[1:-1]]
+        status = int(parts[-1], 16)  # Convert last element from hex to decimal
+        values = np.array([*floats, float(status)], dtype=float)
+        return timestamp, values
 
     def _round_to_full_minute(self, timestamp: datetime) -> datetime:
         """Rounds a datetime object to the nearest full minute."""
-        try:
-            if timestamp.second >= 30:
-                timestamp += timedelta(minutes=1)
-            return timestamp.replace(second=0, microsecond=0)
-        except Exception as err:
-            self.logger.error(err)
-
+        # try:
+        #     if timestamp.second >= 30:
+        #         timestamp += timedelta(minutes=1)
+        #     return timestamp.replace(second=0, microsecond=0)
+        # except Exception as err:
+        #     self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
+        if timestamp.second >= 30:
+            timestamp += timedelta(minutes=1)
+        return timestamp.replace(second=0, microsecond=0)
 
     def accumulate_instant_readings(self) -> None:
         """Collects a single reading and appends it to the self._instant_readings list."""
@@ -168,8 +177,7 @@ class Aurora3000:
             self._instant_readings.append(values)
             self.logger.debug(reading_str)
         except Exception as err:
-            self.logger.error(err)
-
+            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
 
     def accumulate_averages(self) -> None:
         """
@@ -183,6 +191,9 @@ class Aurora3000:
                 averages = np.mean(readings_array, axis=0)
                 
                 # Round the last timestamp to the nearest full minute
+                if self._last_timestamp is None:
+                    # No valid timestamp yet; skip until we have one
+                    return
                 dtm = self._round_to_full_minute(self._last_timestamp)
                 
                 # Clear the self._instant_readings for the next 1-minute collection
@@ -196,8 +207,7 @@ class Aurora3000:
             return
 
         except Exception as err:
-            self.logger.error(err)
-
+            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
 
     def _save_data(self) -> None:
         try:
@@ -234,8 +244,7 @@ class Aurora3000:
             return
 
         except Exception as err:
-            self.logger.error(err)
-
+            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
 
     def _stage_file(self):
         """ Create zip file from self.data_file and stage archive.
@@ -250,13 +259,11 @@ class Aurora3000:
                     self.logger.info(f"file staged: {archive}")
 
         except Exception as err:
-            self.logger.error(err)
-
+            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
 
     def _save_and_stage_data(self):
         self._save_data()
         self._stage_file()
-
 
     def start(self):
         """
@@ -270,5 +277,4 @@ class Aurora3000:
 
 
 if __name__ == "__main__":
-    neph = Aurora3000(config_file='nrbdaq.yml')
-    neph.start()
+    pass
