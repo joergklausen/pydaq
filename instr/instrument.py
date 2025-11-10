@@ -200,6 +200,11 @@ class Instrument(ABC):
         ...
 
     @abstractmethod
+    def display_data(self) -> None:
+        """Acquire simple data from the instrument and display on console."""
+        ...
+
+    @abstractmethod
     def get_config(self) -> dict:
         """Return mapping of configuration items → values read from device."""
         ...

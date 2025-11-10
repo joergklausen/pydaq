@@ -91,13 +91,14 @@ instruments:
           - set format 00
           # - set avg time 3              # do not set here, implemented in init based on sampling_interval_seconds
           # - set lrec format 00 02       # do not set here, implemented in init based on sampling_interval_seconds
-      header: pcdate pctime time date o3 flags cellai cellbi bncht lmpt o3lt flowa flowb pres
       sampling_interval_seconds: 60       # seconds. How often should data be requested from instrument?
       reporting_interval_minutes: 60      # minutes.
+      header: pcdate pctime time date o3 flags cellai cellbi bncht lmpt o3lt flowa flowb pres
       data_path: tei49c
       staging_path: tei49c
       staging_zip: True
       remote_path: tei49c
+      console_display_interval_seconds: 20
 
   - name: 49i
     class: instr.thermo.Thermo
@@ -135,15 +136,16 @@ instruments:
         - set format 00
         # - set avg time 3        # code list. NB: do not set here, implemented in init based on sampling_interval_seconds
         # - set lrec per 1        # code list. NB: do not set here, implemented in init based on sampling_interval_seconds
-      header: pcdate pctime time date flags o3 hio3 cellai cellbi bncht lmpt o3lt flowa flowb pres
       get_data: lr00
       sampling_interval_seconds: 60       # seconds.
       reporting_interval_minutes: 60      # minutes
+      header: pcdate pctime time date flags o3 hio3 cellai cellbi bncht lmpt o3lt flowa flowb pres
       data_path: 49i
       staging_path: 49i
       staging_zip: true
       remote_path: 49i            # optional; defaults to 'name'
       filename_extension: dat     # one of dat|txt|parquet|None
+      console_display_interval_seconds: 20
 
   - name: fidas
     class: instr.fidas.Fidas
@@ -167,85 +169,93 @@ instruments:
       staging_path: fidas
       # staging_zip: True
       remote_path: fidas
+      console_display_interval_seconds: 20
 
   - name: ne300
     class: instr.ecotech.NE300
-    type: NE300
-    protocol: acoem
-    serial_id: 0
-    serial_number: 23-0690
-    mac_number: 00:30:55:0A:78:78
-    socket:
-        host: 192.168.3.149
-        port: 32783
-        timeout: 5
-        sleep: 0.5
-    data_log:
-        parameters: [1000000, 2000000, 3000000, 6000000, 7000000, 8000000,
-                     11000000, 12000000, 13000000, 14000000, 15000000, 16000000,
-                     17000000, 18000000, 19000000, 20000000, 21000000, 26000000,
-                     5001, 5002, 5003, 5004, 5005, 5006,
-                     5010, 6007, 6008, 6001, 6002, 6003,
-                     4035, 4036]
-        wavelengths: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,]
-        angles: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,]
-        interval: 60
-    sampling_interval_seconds: 5            # minutes. logger retrieval interval
-    reporting_interval_minutes: 10
-    data_path: ne300
-    staging_path: ne300
-    staging_zip: True
-    remote_path: ne300
-    verbosity: 2                    # 0: silent, 1: medium, 2: full
-    zero_span_check_interval: 780   # set this to 4380 (=73 hrs) for production
-    zero_check_duration: 20         # set this to 30 for production
-    span_check_duration: 20         # set this to 30 for production
+    params:
+      protocol: acoem
+      serial_id: 0
+      serial_number: 23-0690
+      mac_number: 00:30:55:0A:78:78
+      socket:
+          host: 192.168.3.149
+          port: 32783
+          timeout: 5
+          sleep: 0.5
+      # data_log:
+      #     parameters: [1000000, 2000000, 3000000, 6000000, 7000000, 8000000,
+      #                 11000000, 12000000, 13000000, 14000000, 15000000, 16000000,
+      #                 17000000, 18000000, 19000000, 20000000, 21000000, 26000000,
+      #                 5001, 5002, 5003, 5004, 5005, 5006,
+      #                 5010, 6007, 6008, 6001, 6002, 6003,
+      #                 4035, 4036]
+      #     wavelengths: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,]
+      #     angles: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,]
+      #     interval: 60
+      sampling_interval_seconds: 5            # minutes. logger retrieval interval
+      reporting_interval_minutes: 10
+      data_path: ne300
+      staging_path: ne300
+      staging_zip: True
+      remote_path: ne300
+      verbosity: 2                    # 0: silent, 1: medium, 2: full
+      zero_span_check_interval_minutes: 780   # set this to 4380 (=73 hrs) for production
+      zero_check_duration_minutes: 20         # set this to 30 for production
+      span_check_duration_minutes: 20         # set this to 30 for production
+      console_display_interval_seconds: 20
 
 g2401:
     class: instr.g2401.G2401
     type: Picarro G2401
-    serial_number: 3293-CFKADS2320
-    socket:
-        host: 192.168.4.102
-        port: 51020
-        timeout: 1
-        sleep: 0.5
-    netshare: DataLog_User_Sync
-    days_to_sync: 7                 # file synching from network drives to data directory
-    buckets: daily                  # Determines the expected directory structure and how files are found.
-    reporting_interval_minutes: 10          # minutes. How often should source be scanned and new files staged?
-    data_path: g2401
-    staging_path: g2401
-    staging_zip: True
-    remote_path: g2401
+    params:
+      serial_number: 3293-CFKADS2320
+      socket:
+          host: 192.168.4.102
+          port: 51020
+          timeout: 1
+          sleep: 0.5
+      netshare: DataLog_User_Sync
+      days_to_sync: 7                 # file synching from network drives to data directory
+      buckets: daily                  # Determines the expected directory structure and how files are found.
+      reporting_interval_minutes: 10          # minutes. How often should source be scanned and new files staged?
+      data_path: g2401
+      staging_path: g2401
+      staging_zip: True
+      remote_path: g2401
+      console_display_interval_seconds: 20
 
 ae33:
     class: instr.magee.AE33
     type: Magee AE33
-    id: 169
-    serial_number: AE33-S10-01394
-    MAC: C4-00-AD-D8-0A-AC
-    socket:
-        host: 192.168.3.137
-        port: 8002
-        timeout: 0.5
-        sleep: 0.5
-    get_config:
-        - HELLO
-    set_datetime: False             # Should date and time be set when initializing the instrument?
-    sampling_interval_seconds: 1            # minutes. How often should data be requested from instrument?
-    reporting_interval_minutes: 10
-    data_path: ae33
-    staging_path: ae33
-    staging_zip: True
-    remote_path: ae33
+    params:
+      id: 169
+      serial_number: AE33-S10-01394
+      MAC: C4-00-AD-D8-0A-AC
+      socket:
+          host: 192.168.3.137
+          port: 8002
+          timeout: 0.5
+          sleep: 0.5
+      get_config:
+          - HELLO
+      set_datetime: False             # Should date and time be set when initializing the instrument?
+      sampling_interval_seconds: 1            # minutes. How often should data be requested from instrument?
+      reporting_interval_minutes: 10
+      data_path: ae33
+      staging_path: ae33
+      staging_zip: True
+      remote_path: ae33
+      console_display_interval_seconds: 20
 
 meteo:
     type: METEO
-    source: c:/ftproot/meteo        # directory where data can be found
-    pattern: VRXA00
-    data_path: meteo
-    staging_path: meteo
-    reporting_interval_minutes: 10
-    staging_zip: False
-    remote_path: meteo
+    params:
+      source: c:/ftproot/meteo        # directory where data can be found
+      pattern: VRXA00
+      data_path: meteo
+      staging_path: meteo
+      reporting_interval_minutes: 10
+      staging_zip: False
+      remote_path: meteo
+      # console_display_interval_seconds: 60

@@ -33,7 +33,10 @@ def run_threaded(job_func, *args, **kwargs):
 
 def setup_schedules(instr) -> None:
     """Setup schedule(s) for specified instrument."""
-    # Sample every samplping interval (threaded so the loop never blocks)
+    # Console display every 20' (threaded so the loop never blocks)
+    schedule.every(instr.console_display_interval_seconds).seconds.do(run_threaded, instr.display_data)
+    
+    # Sample every sampling interval (threaded so the loop never blocks)
     schedule.every(instr.sampling_interval_seconds).seconds.do(run_threaded, instr.get_data)
 
     # Save every 10 minutes, aligned (reduces loss on power cuts)

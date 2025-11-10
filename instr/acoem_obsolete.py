@@ -44,8 +44,8 @@ class NE300:
             - config[name]['socket']['sleep']
             - config[name]['get_data_interval']
             - config[name]['reporting_interval']
-            - config[name]['zero_check_duration']
-            - config[name]['span_check_duration']
+            - config[name]['zero_check_duration_minutes']
+            - config[name]['span_check_duration_minutes']
             - config['staging']['path'])
             - config[name]['staging_zip']
             - config[name]['protocol']
@@ -97,21 +97,21 @@ class NE300:
             self.reporting_interval = config[name]['reporting_interval']
 
             # zero and span check interval and durations
-            self.zero_span_check_interval = config[name]['zero_span_check_interval']
-            self.zero_check_duration = config[name]['zero_check_duration']
-            self.span_check_duration = config[name]['span_check_duration']
-            if self.zero_span_check_interval % 60 != 0:
+            self.zero_span_check_interval_minutes = config[name]['zero_span_check_interval_minutes']
+            self.zero_check_duration_minutes = config[name]['zero_check_duration_minutes']
+            self.span_check_duration_minutes = config[name]['span_check_duration_minutes']
+            if self.zero_span_check_interval_minutes % 60 != 0:
                 raise ValueError(
-                    f"zero_span_check_interval={self.zero_span_check_interval} must be a multiple of 60 minutes."
+                    f"zero_span_check_interval_minutes={self.zero_span_check_interval_minutes} must be a multiple of 60 minutes."
                 )
-            total_duration = self.zero_check_duration + self.span_check_duration
+            total_duration = self.zero_check_duration_minutes + self.span_check_duration_minutes
             if total_duration >= 60:
                 raise ValueError(
-                    f"zero_check_duration + span_check_duration = {total_duration} must be < 60 minutes."
+                    f"zero_check_duration_minutes + span_check_duration_minutes = {total_duration} must be < 60 minutes."
                 )
-            self._zero_span_check_hours = self.zero_span_check_interval // 60
-            self._span_offset_min = self.zero_check_duration                                # mm offset from :00
-            self._ambient_offset_min = self.zero_check_duration + self.span_check_duration  # mm offset from :00
+            self._zero_span_check_hours = self.zero_span_check_interval_minutes // 60
+            self._span_offset_min = self.zero_check_duration_minutes                                # mm offset from :00
+            self._ambient_offset_min = self.zero_check_duration_minutes + self.span_check_duration_minutes  # mm offset from :00
             self.logger.info(
                 "zero/span checks every %d hours, zero @ :00, span @ :%02d, return to ambient @ :%02d",
                 self._zero_span_check_hours, self._span_offset_min, self._ambient_offset_min,
@@ -206,8 +206,8 @@ class NE300:
         - Ambient:  every N hours at :<zero_duration + span_duration>
 
         Assumes __init__ validated that:
-        - zero_span_check_interval is a multiple of 60
-        - zero_check_duration + span_check_duration < 60
+        - zero_span_check_interval_minutes is a multiple of 60
+        - zero_check_duration_minutes + span_check_duration_minutes < 60
         """
         try:
             # Zero at :00 every N hours
@@ -1073,7 +1073,7 @@ class NE300:
     #         self.logger.info(f"Instrument switched to ZERO CHECK")
     #     else:
     #         self.logger.warning(colorama.Fore.YELLOW + f"Instrument mode should be '1' (ZERO CHECK) but was returned as '{resp}'." + colorama.Fore.GREEN)
-    #     while now < dtm + timedelta(minutes=self.zero_check_duration):
+    #     while now < dtm + timedelta(minutes=self.zero_check_duration_minutes):
     #         now = datetime.now(timezone.utc)
     #         time.sleep(1)
         
@@ -1090,7 +1090,7 @@ class NE300:
     #         self.logger.info(f"Instrument switched to SPAN CHECK")
     #     else:
     #         self.logger.warning(colorama.Fore.YELLOW + f"Instrument mode should be '2' (SPAN CHECK) but was returned as '{resp}'." + colorama.Fore.GREEN)
-    #     while now < dtm + timedelta(minutes=self.span_check_duration):
+    #     while now < dtm + timedelta(minutes=self.span_check_duration_minutes):
     #         now = datetime.now(timezone.utc)
     #         time.sleep(1)
         
