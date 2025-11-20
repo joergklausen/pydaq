@@ -64,7 +64,7 @@ ports:
 # attached instruments configuration
 instruments:
   - name: 49c
-    class: instr.thermo.Thermo
+    driver: instr.thermo.Thermo
     model: 49c
     params:
       id: 49
@@ -101,7 +101,7 @@ instruments:
       console_display_interval_seconds: 20
 
   - name: 49i
-    class: instr.thermo.Thermo
+    driver: instr.thermo.Thermo
     model: 49i
     params:
       id: 49
@@ -148,7 +148,7 @@ instruments:
       console_display_interval_seconds: 20
 
   - name: fidas
-    class: instr.fidas.Fidas
+    driver: instr.fidas.Fidas
     params:
       serial_number: 6082
       communication: socket     # options: socket, serial (not implemented)
@@ -172,7 +172,8 @@ instruments:
       console_display_interval_seconds: 20
 
   - name: ne300
-    class: instr.ecotech.NE300
+    driver: instr.ecotech.NEPH
+    model: NE300
     params:
       protocol: acoem
       serial_id: 0
@@ -205,9 +206,24 @@ instruments:
       span_check_duration_minutes: 20         # set this to 30 for production
       console_display_interval_seconds: 20
 
-g2401:
-    class: instr.g2401.G2401
-    type: Picarro G2401
+  - name: aurora3000
+    driver: instr.ecotech.NEPH
+    model: Aurora3000
+    params:
+      serial_number: S/N
+      serial_port: /dev/ttyUSB1
+      serial_baudrate: 19200
+      serial_timeout: 1
+      sampling_interval_seconds: 60
+      reporting_interval_minutes: 10
+      data_path: aurora3000
+      staging_path: aurora3000
+      remote_path: aurora3000
+      console_display_interval_seconds: 20
+
+  - name: g2401
+    driver: instr.g2401.G2401
+    model: Picarro G2401
     params:
       serial_number: 3293-CFKADS2320
       socket:
@@ -225,8 +241,8 @@ g2401:
       remote_path: g2401
       console_display_interval_seconds: 20
 
-ae33:
-    class: instr.magee.AE33
+  - name: ae33
+    driver: instr.magee.AE33
     type: Magee AE33
     params:
       id: 169
@@ -248,7 +264,8 @@ ae33:
       remote_path: ae33
       console_display_interval_seconds: 20
 
-meteo:
+  - name: meteo
+    driver: instr.meteo.LUFFT
     type: METEO
     params:
       source: c:/ftproot/meteo        # directory where data can be found
@@ -259,3 +276,21 @@ meteo:
       staging_zip: False
       remote_path: meteo
       # console_display_interval_seconds: 60
+
+  - tapo:
+      driver: instr.tapo.Tapo
+      type: Tapo C230
+      params:
+        ip_address: 192.168.x.y
+        username: ~/.tapo/tapo-account-username
+        password: ~/.tapo/tapo-account-password
+        stream: 1
+        image_format: png        # or: jpg
+        jpeg_quality: 95         # only used if image_format = jpg
+        png_compression: 3       # 0–9, only if image_format = png
+        sampling_interval_seconds: 3600          # seconds. How often should a snapshot be taken?
+        # reporting_interval_minutes: 360
+        data_path: tapo
+        staging_path: tapo
+        # staging_zip: False
+        remote_path: tapo

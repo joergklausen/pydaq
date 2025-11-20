@@ -73,7 +73,53 @@ def with_serial(func):
 
 
 class Instrument(ABC):
-    """Abstract base providing shared behavior for pydaq instruments."""
+    """
+    Abstract base providing shared behavior for pydaq instruments.
+    
+    Properties:
+    - sampling_interval: int
+        Sampling interval in seconds.
+    - aggregation_period: int
+        Aggregation period in minutes.
+    - reporting_interval: int
+        Reporting interval in minutes (staging and transfer cadence).
+    - remote_prefix: str
+        Prefix under which this instrument stages remotely.
+        - For S3: becomes the key prefix (e.g., '<default_prefix>/<remote_prefix>/file.zip').
+        - For SFTP: appended to the configured remote base path.
+        Defaults to the instrument name if not set in YAML.
+
+    Abstract methods to implement in subclasses:
+    - _serial_comm(cmd: str) -> str
+        Low-level serial command/response; driver defines protocol details.
+    - _socket_comm(cmd: str) -> str
+        Low-level socket command/response; driver defines protocol details.
+
+    - get_config() -> dict
+        Return mapping of configuration items → values read from device.
+    - set_config() -> dict
+        Apply configuration commands and return mapping cmd → response.
+    - set_datetime() -> None
+        Set the instrument's internal date/time (if supported).
+
+    - display_data() -> None
+        Acquire simple data from the instrument and display on console.
+
+    - get_data() -> str
+        Acquire data from the instrument and typically call `accumulate_data`.
+    - accumulate_data(data: str) -> None
+        Append a line of text data to the internal buffer.
+    - accumulate_dataframe(df_like: Any) -> None
+        Append a Polars DataFrame (or DataFrame-like) to the parquet buffer.
+
+    - save_data_file() -> None
+        Persist buffered data to disk (text or parquet), then reset the buffer.
+    - stage_data_file() -> None
+        Copy or ZIP the last saved file into the staging folder.
+    - transfer_files() -> bool
+        Upload staged files via S3 (preferred) or SFTP (fallback), depending on what is configured in the global YAML.
+        Returns True if any backend ran without raising; False otherwise.
+    """
 
     # ---------- lifecycle ----------
 

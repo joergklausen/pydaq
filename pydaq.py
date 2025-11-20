@@ -70,16 +70,16 @@ def load_instrument(entry: Dict[str, Any], config_path: str):
         path (str | Path): Expanded path to the YAML configuration file.
 
     Returns:
-        class: instrument.
+        driver: instrument driver (class).
 
     Raises:
         ...
 
     """
     name = entry["name"]
-    module_name, class_name = entry["class"].rsplit(".", 1)
+    module_name, driver_name = entry["driver"].rsplit(".", 1)
     try:
-        cls = getattr(importlib.import_module(module_name), class_name)
+        cls = getattr(importlib.import_module(module_name), driver_name)
         return cls(name=name, config_path=config_path)
     except Exception as err:
         pass
