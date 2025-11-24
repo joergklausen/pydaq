@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 import io
-import os
 import logging
+import os
+import threading
+import types
 from pathlib import Path, PurePosixPath
 from typing import Dict, Tuple
-import types
 
+import paramiko  # only for policy types referenced by SFTPClient
 import pytest
 import schedule
-import paramiko  # only for policy types referenced by SFTPClient
 
 
 # -----------------------
@@ -168,6 +171,31 @@ class MemorySSHClient:
         self.connected = False
 
 
+class DummyNeph:
+    """Minimal stand-in for Instrument/NEPH for protocol tests."""
+
+    def __init__(self) -> None:
+        self._name = "dummy_neph"
+        self.logger = logging.getLogger("dummy_neph")
+        self._sockaddr = ("127.0.0.1", 3602)
+        self._socktout = 1.0
+        self._socksleep = 0.0
+        self._io_lock = threading.Lock()
+        self._params_comms = "socket"
+        self.sampling_interval = 60  # seconds
+
+    def _use_serial(self) -> bool:
+        """Mirror NEPH._use_serial: True if configured for serial comms."""
+        return self._params_comms == "serial"
+
+    # These are used only by AuroraClient, and we’ll override them in tests.
+    def _serial_comm(self, cmd: str) -> str:  # pragma: no cover - overridden in tests
+        raise RuntimeError("Not used in dummy.")
+
+    def _socket_comm(self, cmd: str) -> str:  # pragma: no cover - overridden in tests
+        raise RuntimeError("Not used in dummy.")
+
+
 # -----------------------
 # Fixtures
 # -----------------------
@@ -217,3 +245,8 @@ def config(tmp_path):
         "remote": "/upload/base",
         "accept_unknown_host_keys": True,  # keep simple in tests
     }
+
+
+@pytest.fixture
+def dummy_driver() -> DummyNeph:
+    return DummyNeph()

@@ -1,6 +1,4 @@
 """
-instr/acoem.py
-
 Define a class NE300 facilitating communication with a Acoem NE-300 nephelometer.
 
 @author: joerg.klausen@meteoswiss.ch
@@ -25,7 +23,7 @@ def _default_run_threaded(job, *args, **kwargs):
     thread.start()
     return thread
 
-class NE300:
+class NEPH:
     """
     Instrument of type Acoem NE-300 or Ecotech Aurora 3000 nephelometer with methods, attributes for interaction.
     """
@@ -44,8 +42,8 @@ class NE300:
             - config[name]['socket']['sleep']
             - config[name]['get_data_interval']
             - config[name]['reporting_interval']
-            - config[name]['zero_check_duration_minutes']
-            - config[name]['span_check_duration_minutes']
+            - config[name]['zero_check_duration']
+            - config[name]['span_check_duration']
             - config['staging']['path'])
             - config[name]['staging_zip']
             - config[name]['protocol']
@@ -97,21 +95,21 @@ class NE300:
             self.reporting_interval = config[name]['reporting_interval']
 
             # zero and span check interval and durations
-            self.zero_span_check_interval_minutes = config[name]['zero_span_check_interval_minutes']
-            self.zero_check_duration_minutes = config[name]['zero_check_duration_minutes']
-            self.span_check_duration_minutes = config[name]['span_check_duration_minutes']
-            if self.zero_span_check_interval_minutes % 60 != 0:
+            self.zero_span_check_interval = config[name]['zero_span_check_interval']
+            self.zero_check_duration = config[name]['zero_check_duration']
+            self.span_check_duration = config[name]['span_check_duration']
+            if self.zero_span_check_interval % 60 != 0:
                 raise ValueError(
-                    f"zero_span_check_interval_minutes={self.zero_span_check_interval_minutes} must be a multiple of 60 minutes."
+                    f"zero_span_check_interval={self.zero_span_check_interval} must be a multiple of 60 minutes."
                 )
-            total_duration = self.zero_check_duration_minutes + self.span_check_duration_minutes
+            total_duration = self.zero_check_duration + self.span_check_duration
             if total_duration >= 60:
                 raise ValueError(
-                    f"zero_check_duration_minutes + span_check_duration_minutes = {total_duration} must be < 60 minutes."
+                    f"zero_check_duration + span_check_duration = {total_duration} must be < 60 minutes."
                 )
-            self._zero_span_check_hours = self.zero_span_check_interval_minutes // 60
-            self._span_offset_min = self.zero_check_duration_minutes                                # mm offset from :00
-            self._ambient_offset_min = self.zero_check_duration_minutes + self.span_check_duration_minutes  # mm offset from :00
+            self._zero_span_check_hours = self.zero_span_check_interval // 60
+            self._span_offset_min = self.zero_check_duration                                # mm offset from :00
+            self._ambient_offset_min = self.zero_check_duration + self.span_check_duration  # mm offset from :00
             self.logger.info(
                 "zero/span checks every %d hours, zero @ :00, span @ :%02d, return to ambient @ :%02d",
                 self._zero_span_check_hours, self._span_offset_min, self._ambient_offset_min,
@@ -206,8 +204,8 @@ class NE300:
         - Ambient:  every N hours at :<zero_duration + span_duration>
 
         Assumes __init__ validated that:
-        - zero_span_check_interval_minutes is a multiple of 60
-        - zero_check_duration_minutes + span_check_duration_minutes < 60
+        - zero_span_check_interval is a multiple of 60
+        - zero_check_duration + span_check_duration < 60
         """
         try:
             # Zero at :00 every N hours
@@ -222,7 +220,7 @@ class NE300:
                 self._zero_span_check_hours, self._span_offset_min, self._ambient_offset_min
             )
         except Exception as err:  # pragma: no cover
-            self.logger.error("setup_zero_span_check_schedules failed: " + f"{err}" + colorama.Fore.GREEN)
+            self.logger.error("setup_zero_span_check_schedules failed: %s", err)
 
 
     def _acoem_checksum(self, x: bytes) -> bytes:
@@ -517,7 +515,7 @@ class NE300:
             return datetime.strptime(f"{dte} {tme}", f"{fmt} %H:%M:%S")
 
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
+            self.logger.error(err)
             return datetime(1111, 1, 1, 1, 1, 1)
         
 
@@ -613,7 +611,7 @@ class NE300:
                 return rcvd
 
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
+            self.logger.error(err)
             # inform other callers that line is free
             self._tcpip_line_is_busy = False
             return b''
@@ -638,7 +636,7 @@ class NE300:
                 self.logger.warning(colorama.Fore.YELLOW + "Not implemented." + colorama.Fore.GREEN)
                 return []
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
+            self.logger.error(err)
             return []
 
 
@@ -661,7 +659,7 @@ class NE300:
                 warnings.warn("Not implemented.")
                 return []
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
+            self.logger.error(err)
             return []
 
 
@@ -687,7 +685,7 @@ class NE300:
             self._tcpip_comm(message, expect_response=False, verbosity=verbosity)
             return
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
+            self.logger.error(err)
     
 
     def get_values(self, parameters: 'list[int]', verbosity: int=0) -> dict:
@@ -728,8 +726,7 @@ class NE300:
                 self.logger.warning(colorama.Fore.YELLOW + "Not implemented." + colorama.Fore.GREEN)
                 return dict()
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
-
+            self.logger.error(err)
             return dict()
 
 
@@ -767,8 +764,7 @@ class NE300:
                 warnings.warn("Not implemented.")
                 return int()
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
-
+            self.logger.error(err)
             return int()
 
 
@@ -794,8 +790,7 @@ class NE300:
                 self.logger.warning(colorama.Fore.YELLOW + "Not implemented." + colorama.Fore.GREEN)
                 return list()
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
-
+            self.logger.error(err)
             return list()
 
 
@@ -827,8 +822,7 @@ class NE300:
     #         else:
     #             return list()
     #     except Exception as err:
-    #                    self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
-
+    #         self.logger.error(err)
     #         return list()
     
     def set_datalog_interval(self, verbosity: int=0) -> int:
@@ -837,8 +831,7 @@ class NE300:
             return datalog_interval
 
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
-
+            self.logger.error(err)
             return int()
         
     def get_logged_data(self, start: datetime, end: datetime, verbosity: int=0) -> 'list[dict]':
@@ -877,8 +870,7 @@ class NE300:
                 self.logger.warning(colorama.Fore.YELLOW + "Not implemented. For the aurora protocol, try 'get_all_data' or 'accumulate_new_data'." + colorama.Fore.GREEN)
                 return list(dict())
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
-
+            self.logger.error(err)
             return []
 
     def get_current_operation(self, verbosity: int=0) -> int:
@@ -907,8 +899,7 @@ class NE300:
             else:
                 raise ValueError("Protocol not recognized.")
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
-
+            self.logger.error(err)
             return 9
 
     def set_current_operation(self, state: int=0, verify: bool=True, verbosity: int=0) -> int:
@@ -945,8 +936,7 @@ class NE300:
             else:
                 raise ValueError("Protocol not recognized.")
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
-
+            self.logger.error(err)
             return 9
 
     def get_id(self, verbosity: int=0) -> 'dict[str, str]':
@@ -982,8 +972,7 @@ class NE300:
             return resp
 
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
-
+            self.logger.error(err)
             return dict()
 
     def get_datetime(self, verbosity: int=0) -> datetime:
@@ -1012,8 +1001,7 @@ class NE300:
             self.logger.info(f"get_datetime: {response}")
             return response
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
-
+            self.logger.error(err)
             return response
 
     def get_set_datetime(self, dtm: datetime=datetime.now(timezone.utc), verbosity: int=0) -> 'tuple[dict, dict]':
@@ -1048,61 +1036,9 @@ class NE300:
                 # self.logger.info(msg)
 
         except Exception as err:
-            self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
-
+            self.logger.error(err)
             return (dict(), dict())
 
-    # def _do_zero_span_check(self, verbosity: int=0) -> None:
-    #     """
-    #     Launch a zero check, followed by a span check. Finally, return to Ambient mode.
-    #     NB: Not to be used in operations, the wait loop is blocking
-
-    #     Parameters:
-    #         verbosity (int, optional): ...
-
-    #     Returns:
-    #         None
-    #     """
-    #     dtm = now = datetime.now(timezone.utc)
-
-    #     # change operating state to ZERO
-    #     msg = f"Switching to ZERO CHECK mode ..."
-    #     self.logger.info(colorama.Fore.BLUE + f"[{self.name}] {msg}")
-    #     resp = self.do_zero(verbosity=verbosity)
-    #     if resp==1:
-    #         self.logger.info(f"Instrument switched to ZERO CHECK")
-    #     else:
-    #         self.logger.warning(colorama.Fore.YELLOW + f"Instrument mode should be '1' (ZERO CHECK) but was returned as '{resp}'." + colorama.Fore.GREEN)
-    #     while now < dtm + timedelta(minutes=self.zero_check_duration_minutes):
-    #         now = datetime.now(timezone.utc)
-    #         time.sleep(1)
-        
-    #     # change operating state to SPAN
-    #     dtm = now = datetime.now(timezone.utc)
-    #     msg = f"Switching to SPAN CHECK mode ..."
-    #     self.logger.info(colorama.Fore.BLUE + f"[{self.name}] {msg}")
-    #     resp = self.do_span(verbosity=verbosity)
-        
-    #     # open CO2 cylinder valve by setting digital out to HIGH
-    #     # resp2 = self.set_value(7005, 1)
-    #     # msg = f"CO2 cylinder valve 
-    #     if resp==2:
-    #         self.logger.info(f"Instrument switched to SPAN CHECK")
-    #     else:
-    #         self.logger.warning(colorama.Fore.YELLOW + f"Instrument mode should be '2' (SPAN CHECK) but was returned as '{resp}'." + colorama.Fore.GREEN)
-    #     while now < dtm + timedelta(minutes=self.span_check_duration_minutes):
-    #         now = datetime.now(timezone.utc)
-    #         time.sleep(1)
-        
-    #     # change operating state to AMBIENT
-    #     msg = f"Switching to AMBIENT mode."
-    #     self.logger.info(colorama.Fore.BLUE + f"[{self.name}] {msg}")
-    #     resp = self.do_ambient(verbosity=verbosity)
-    #     if resp==0:
-    #         self.logger.info(f"Instrument switched to AMBIENT mode")
-    #     else:
-    #         self.logger.warning(f"Instrument mode should be '0' (AMBIENT) but was returned as '{resp}'.")
-    #     return
 
     def do_span(self, verify: bool=True, verbosity: int=0) -> int:
         """
@@ -1143,47 +1079,6 @@ class NE300:
         self._tcpip_comm_wait_for_line()
         return self.set_current_operation(state=0, verify=verify, verbosity=verbosity)
 
-    # def get_status_word(self, verbosity: int=0) -> int:
-    #     """
-    #     Read the System status of the Aurora 3000 microprocessor board. The status word 
-    #     is the status of the nephelometer in hexadecimal converted to decimal.
-
-    #     Parameters:
-    
-    #     Returns:
-    #         int: {<STATUS WORD>}
-    #     """
-    #     return int(self._tcpip_comm(f"VI{self.serial_id}88\r".encode()).decode())
-
-
-    # def get_all_data(self, verbosity: int=0) -> str:
-    #     """
-    #     Rewind the pointer of the data logger to the first entry, then retrieve all data (cf. B.4 ***R, B.3 ***D). 
-    #     This only works with the aurora protocol (and doesn't work very well with the NE-300).
-
-    #     Parameters:
-    #         verbosity (int, optional): level of printed output, one of 0 (none), 1 (condensed), 2 (full). Defaults to 0.
-
-    #     Returns:
-    #         str: response
-    #     """
-    #     try:
-    #         if self._protocol=="acoem":
-    #             warnings.warn("Not implemented. Use 'get_logged_data' with specified period instead.")
-    #         elif self._protocol=='aurora':
-    #             self._tcpip_comm_wait_for_line()
-    #             response = self._tcpip_comm(message=f"***R\r".encode(), verbosity=verbosity).decode()
-    #             response = self.accumulate_new_data(verbosity=verbosity)
-    #             # response = self._tcpip_comm(message=f"***D\r".encode(), verbosity=verbosity).decode()
-    #             return response
-    #         else:
-    #             raise ValueError("Protocol not implemented.")
-    #         return str()
-    #     except Exception as err:
-    #                    self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
-
-    #         return str()
-
 
     def get_current_data(self, add_params: list=[], strict: bool=False, sep: str=' ', verbosity: int=0) -> dict:
         """
@@ -1206,7 +1101,6 @@ class NE300:
             parameters += add_params
         try:
             if self._protocol=='acoem':
-                # warnings.warn("Not implemented.")
                 data = self.get_values(parameters=parameters, verbosity=verbosity)
                 if strict:
                     if 1 in parameters:
@@ -1279,22 +1173,6 @@ class NE300:
             if verbosity>0:
                 self.logger.info(data)
 
-            # if save:
-            #     if self.reporting_interval is None:
-            #         raise ValueError("'reporting_interval' cannot be None.")
-                
-            #     # generate the datafile name
-            #     self.__datafile = os.path.join(self.datadir, time.strftime("%Y"), time.strftime("%m"), time.strftime("%d"),
-            #                                 "".join([self.name, "-",
-            #                                         datetimebin.dtbin(self.reporting_interval), ".dat"]))
-
-            #     os.makedirs(os.path.dirname(self.__datafile), exist_ok=True)
-            #     with open(self.__datafile, "at", encoding='utf8') as fh:
-            #         fh.write(data)
-            #         fh.close()
-
-            #     if self.staging_path:
-            #         self.stage_data_file()
             self._data += data
 
             return 
@@ -1373,7 +1251,7 @@ class NE300:
             self.logger.error(colorama.Fore.RED + f"{err}" + colorama.Fore.GREEN)
 
 
-    def print_ssp_bssp(self) -> None:
+    def display_data(self) -> None:
         """Retrieve current readings and print."""
         try:
             data = self.get_values(parameters=[2635000, 2635090, 2525000, 2525090, 2450000, 2450090])

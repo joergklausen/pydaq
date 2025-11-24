@@ -28,6 +28,9 @@ class DummySerialInstrument(Instrument):
 
     def set_config(self) -> dict:
         return {}
+    
+    def display_data(self) -> str:
+        return "O3: 2.34 ppb"
 
 
 def test_serial_instrument_initialization(monkeypatch, tmp_path):

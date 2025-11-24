@@ -63,9 +63,9 @@ def test_init_and_routing(config_and_patch):
     # simulate=True by default, so no hardware is touched
     t = Thermo("thermo", "ignored.yaml")
     if model == "49C":
-        assert t._instr_comms == "serial"
+        assert t._params_comms == "serial"
     else:
-        assert t._instr_comms in {"serial", "socket"}
+        assert t._params_comms in {"serial", "socket"}
     assert t.get_data() != ""
 
 
