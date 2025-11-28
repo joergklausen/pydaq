@@ -140,7 +140,8 @@ class Fidas(Instrument):
 
     # not used
     def _serial_comm(self, cmd: str) -> str:
-        return super()._serial_comm(cmd)
+        self.logger.warning(f"[{self.name}] _serial_comm() is not implemented. Returning empty string.")
+        return str()
     
     def _socket_comm(self, cmd: str=str()) -> str:
         """Retrieve a raw record from the instrument, typically passed on to _parse_reply().
@@ -155,7 +156,7 @@ class Fidas(Instrument):
         if self.sock is None:
             return str()
         try:
-            self.sock.settimeout(self.sampling_interval)
+            self.sock.settimeout(self.sampling_interval_seconds)
             while True:
                 data, _ = self.sock.recvfrom(self._params["buffer_size"])
                 self.buffer += data.decode('ascii', errors='ignore')
@@ -168,16 +169,19 @@ class Fidas(Instrument):
         return str()
 
     def accumulate_data(self, data: str) -> None:
-        return super().accumulate_data(data)
+        self.logger.warning(f"[{self.name}] accumulate_data() is not implemented. Returning None.")
+        return None
     
     def get_config(self) -> dict:
-        return super().get_config()
+        self.logger.warning(f"[{self.name}] get_config() is not implemented. Returning empty dict().")
+        return dict()
 
     def set_config(self) -> dict:
-        return super().set_config()
+        self.logger.warning(f"[{self.name}] set_config() is not implemented. Returning empty dict().")
+        return dict()
 
     def set_datetime(self) -> dict:
-        self.logger.warning("set_datetime() is not implemented. Returning dict().")
+        self.logger.warning(f"[{self.name}] set_datetime() is not implemented. Returning empty dict().")
         return dict()
 
     def get_data(self) -> dict[str, Any]:
@@ -268,7 +272,7 @@ class Fidas(Instrument):
 
     def setup_schedules(self):
         try:
-            schedule.every(self.sampling_interval).seconds.do(self.get_data)
+            schedule.every(self.sampling_interval_seconds).seconds.do(self.get_data)
             schedule.every(self.aggregation_period).minutes.do(self.compute_raw_data_median)
             schedule.every(1).hours.do(self.save_hourly, stage=True)
             self.logger.info(schedule.get_jobs())
@@ -278,7 +282,7 @@ class Fidas(Instrument):
     def run(self):
         self.logger.info("=== Starting FIDAS DAQ =======")
         # print("=== Starting FIDAS DAQ =======")
-        schedule.every(self.sampling_interval).seconds.do(self.get_data)
+        schedule.every(self.sampling_interval_seconds).seconds.do(self.get_data)
         schedule.every(self.aggregation_period).minutes.do(self.compute_raw_data_median)
         schedule.every(1).hours.do(self.save_hourly, stage=True)
         self.logger.info(schedule.get_jobs())
@@ -489,7 +493,7 @@ if __name__ == "__main__":
 
 # def collect_and_aggregate_polars(
 #     read_func: Callable[[], str],
-#     sampling_interval: int,
+#     sampling_interval_seconds: int,
 #     output_dir: str
 # ) -> None:
 #     """
@@ -519,7 +523,7 @@ if __name__ == "__main__":
 #                     continue
 #             if parsed:
 #                 rows.append(parsed)
-#         time.sleep(sampling_interval)
+#         time.sleep(sampling_interval_seconds)
 
 #     if not rows:
 #         logging.warning("No valid data collected in this interval.")
@@ -561,7 +565,7 @@ if __name__ == "__main__":
 #     schedule.every(1).minutes.do(
 #         collect_and_aggregate_polars,
 #         read_func=read_from_instrument,
-#         sampling_interval=args.interval,
+#         sampling_interval_seconds=args.interval,
 #         output_dir=args.output
 #     )
 
