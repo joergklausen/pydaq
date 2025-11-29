@@ -11,16 +11,20 @@ Responsibilities
 
 from __future__ import annotations
 
+import functools
 import logging
 import threading
+import time
 import zipfile
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Optional
 
+# Optional serial support for serial instruments
 try:
     import serial  # type: ignore
+    from serial import SerialException, SerialTimeoutException  # type: ignore
 except Exception:  # pragma: no cover
     serial = None  # allow import without pyserial
 
@@ -37,38 +41,122 @@ def _ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
+# def with_serial(func):
+#     """Decorator to open/close a serial port around a method (thread-safe, lazy).
+
+#     Expects the instance to carry `_serial_port` and `_serial_cfg` populated by __init__.
+#     """
+#     def wrapper(self, *args, **kwargs):
+#         if serial is None:
+#             raise RuntimeError("pyserial is not available; cannot use serial communication.")
+#         # Serialize device access per instrument
+#         with self._io_lock:
+#             if getattr(self, "_serial", None) is None:
+#                 port = getattr(self, "_serial_port", None)
+#                 cfg = getattr(self, "_serial_cfg", None)
+#                 if not port or not isinstance(cfg, dict):
+#                     raise RuntimeError("Serial port/config not initialized on Instrument.")
+#                 self._serial = serial.Serial(
+#                     port=port,
+#                     baudrate=cfg.get("baudrate", 9600),
+#                     bytesize=cfg.get("bytesize", 8),
+#                     parity=cfg.get("parity", "N"),
+#                     stopbits=cfg.get("stopbits", 1),
+#                     timeout=cfg.get("timeout", 2),
+#                 )
+#             if not self._serial.is_open:
+#                 self._serial.open()
+#             try:
+#                 return func(self, *args, **kwargs)
+#             finally:
+#                 try:
+#                     self._serial.close()
+#                 except Exception:
+#                     pass
+#     return wrapper
 def with_serial(func):
-    """Decorator to open/close a serial port around a method (thread-safe, lazy).
+    """Decorator to handle serial communication with retries and cooldown.
 
     Expects the instance to carry `_serial_port` and `_serial_cfg` populated by __init__.
+    Lazily opens the serial port on first use.
     """
-    def wrapper(self, *args, **kwargs):
+    @functools.wraps(func)
+    def wrapper(self, *args, retries: int = 3, **kwargs) -> str:
         if serial is None:
             raise RuntimeError("pyserial is not available; cannot use serial communication.")
-        # Serialize device access per instrument
-        with self._io_lock:
-            if getattr(self, "_serial", None) is None:
-                port = getattr(self, "_serial_port", None)
-                cfg = getattr(self, "_serial_cfg", None)
-                if not port or not isinstance(cfg, dict):
-                    raise RuntimeError("Serial port/config not initialized on Instrument.")
-                self._serial = serial.Serial(
-                    port=port,
-                    baudrate=cfg.get("baudrate", 9600),
-                    bytesize=cfg.get("bytesize", 8),
-                    parity=cfg.get("parity", "N"),
-                    stopbits=cfg.get("stopbits", 1),
-                    timeout=cfg.get("timeout", 2),
-                )
-            if not self._serial.is_open:
-                self._serial.open()
-            try:
-                return func(self, *args, **kwargs)
-            finally:
+
+        # cooldown gate
+        now = time.time()
+        if getattr(self, "_cooldown_until", 0.0) > now:
+            return ""
+
+        # non-overlapping I/O
+        if not self._io_lock.acquire(blocking=False):
+            return ""
+
+        try:
+            last_err: Exception | None = None
+            for i in range(retries):
                 try:
-                    self._serial.close()
-                except Exception:
-                    pass
+                    # Lazily create/open serial port
+                    if getattr(self, "_serial", None) is None:
+                        port = getattr(self, "_serial_port", None)
+                        cfg = getattr(self, "_serial_cfg", None)
+                        if not port or not isinstance(cfg, dict):
+                            raise RuntimeError("Serial port/config not initialized on Instrument.")
+                        self._serial = serial.Serial(
+                            port=port,
+                            baudrate=cfg.get("baudrate", 9600),
+                            bytesize=cfg.get("bytesize", 8),
+                            parity=cfg.get("parity", "N"),
+                            stopbits=cfg.get("stopbits", 1),
+                            timeout=cfg.get("timeout", 2),
+                        )
+                    if not self._serial.is_open:
+                        self._serial.open()
+
+                    # one attempt: protocol-specific code
+                    result = func(self, *args, **kwargs)
+
+                    # success → reset fail counters / cooldown
+                    self._fail_count = 0
+                    self._cooldown_until = 0.0
+                    return result
+                except (SerialTimeoutException, SerialException, OSError) as err:
+                    last_err = err
+                    self.logger.error(
+                        f"[{getattr(self, 'name', getattr(self, '_name', 'instrument'))}] "
+                        f"serial_comm attempt {i+1}/{retries} failed: {err}"
+                    )
+                    try:
+                        if getattr(self, "_serial", None) is not None and self._serial.is_open:
+                            self._serial.close()
+                    except Exception:
+                        pass
+
+                    self._fail_count = getattr(self, "_fail_count", 0) + 1
+                    max_fail = getattr(self, "_max_fail_before_cooldown", 5)
+                    cooldown = getattr(self, "_cooldown_seconds", 120)
+                    if self._fail_count >= max_fail:
+                        self._cooldown_until = time.time() + cooldown
+                        self.logger.error(
+                            f"[{getattr(self, 'name', getattr(self, '_name', 'instrument'))}] "
+                            f"communication failing repeatedly; backing off for {cooldown}s."
+                        )
+                        break
+
+                    # simple exponential backoff, capped
+                    time.sleep(min(0.5 * (2 ** i), 3.0))
+
+            # all retries failed
+            if last_err is not None:
+                self.logger.error(
+                    f"[{getattr(self, 'name', getattr(self, '_name', 'instrument'))}] "
+                    f"giving up after {retries} attempts."
+                )
+            return ""
+        finally:
+            self._io_lock.release()
     return wrapper
 
 
@@ -164,7 +252,7 @@ class Instrument(ABC):
         self._params_comms = str(self._params.get("communication", "serial")).lower()
 
         # Serial (lazy connection info)
-        self._serial = None
+        self._serial: Any = None
         self._serial_port: Optional[str] = None
         self._serial_cfg: Dict[str, Any] = {}
         if self._params_comms == "serial":
