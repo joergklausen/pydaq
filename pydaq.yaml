@@ -194,8 +194,8 @@ instruments:
       #     wavelengths: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,]
       #     angles: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,]
       #     interval: 60
-      sampling_interval_seconds: 5            # minutes. logger retrieval interval
-      reporting_interval_minutes: 10
+      sampling_interval_seconds: 60            # logger retrieval interval
+      reporting_interval_minutes: 60
       data_path: ne300
       staging_path: ne300
       staging_zip: True
@@ -215,7 +215,7 @@ instruments:
       serial_baudrate: 19200
       serial_timeout: 1
       sampling_interval_seconds: 60
-      reporting_interval_minutes: 10
+      reporting_interval_minutes: 60
       data_path: aurora3000
       staging_path: aurora3000
       remote_path: aurora3000
