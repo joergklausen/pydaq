@@ -42,8 +42,8 @@ transfer:                   # all protocols listed will be used, comment out to 
     aws_region: 'eu-central-1'
     aws_access_key_id: 'gawkenya_native'
     aws_secret_access_key: ~/.aws/minio-devt-secret-key
-    default_prefix: mkn
-
+    default_prefix: pydaq
+    
 # local serial ports configuration
 ports:
   COM1:
