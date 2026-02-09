@@ -99,6 +99,10 @@ class Orchestrator:
             directory.mkdir(parents=True, exist_ok=True)
 
         self.transfer_handler = self._build_transfer_handler(self.application_config)
+
+        # Startup check: verify SFTP/S3 connectivity + permissions (best-effort).
+        self._startup_transfer_selftest()
+
         self._apply_configuration(self.application_config)
 
         if self.application_config.main.dashboard.enabled:
@@ -350,6 +354,251 @@ class Orchestrator:
             name: bool(cfg.output.remove_on_success) for name, cfg in self.application_config.instruments.items()
         }
         self.transfer_handler.transmit_all(instrument_remote_path_map, instrument_remove_on_success_map)
+
+    def _startup_transfer_selftest(self) -> None:
+        """Startup self-test for transfer targets (SFTP + S3).
+
+        Creates a small test file, uploads it using the configured TransferHandler,
+        verifies remote arrival (best-effort), and then tries to delete it again.
+
+        Notes
+        -----
+        - Runs only when transfer is enabled and a TransferHandler exists.
+        - Uses a deterministic filename to avoid accumulating files if delete is not permitted.
+        - Verification is best-effort: if paramiko/boto3 are missing or target fields differ,
+          it will report that explicitly instead of crashing startup.
+        """
+        cfg = self.application_config
+        th = self.transfer_handler
+        if not cfg or not th:
+            return
+        if not getattr(cfg.transfer, "enabled", False):
+            return
+
+        # Guard: only run if we actually have S3/SFTP targets
+        targets = getattr(th, "targets", []) or []
+        if not targets:
+            return
+
+        station_id = getattr(cfg.station, "id", "station")
+        test_instrument = "__selftest__"
+        remote_subpath = f"_pydaq_selftest/{station_id}"
+
+        # Deterministic name: if remote delete is not allowed, next boot overwrites same object.
+        filename = f"pydaq_selftest_{station_id}.txt"
+        out_dir = cfg.paths.outbox / test_instrument
+        out_dir.mkdir(parents=True, exist_ok=True)
+        local_file = out_dir / filename
+
+        now = time.strftime("%Y-%m-%dT%H:%M:%S")
+        payload = (
+            f"pydaq transfer self-test\n"
+            f"station={station_id}\n"
+            f"dtm={now}\n"
+        )
+        local_file.write_text(payload, encoding="utf-8")
+
+        def _p(msg: str) -> None:
+            print(msg, flush=True)
+
+        _p(f"[pydaq] transfer self-test: uploading {local_file.name} to configured targets ...")
+
+        upload_ok = False
+        try:
+            # Use the real configured pipeline (your TransferHandler)
+            th.transmit_instrument(
+                instrument_name=test_instrument,
+                remote_path=remote_subpath,
+                remove_on_success=False,
+            )
+            upload_ok = True
+        except Exception as exc:
+            self.logger.exception("transfer self-test upload failed (%s)", exc)
+            _p(f"[pydaq] transfer self-test: UPLOAD FAILED ({exc})")
+
+        # Helpers to access target attributes robustly (dataclass/object/dict)
+        def _get(obj, *names, default=None):
+            if obj is None:
+                return default
+            if isinstance(obj, dict):
+                for n in names:
+                    if n in obj and obj[n] is not None:
+                        return obj[n]
+                return default
+            for n in names:
+                if hasattr(obj, n):
+                    v = getattr(obj, n)
+                    if v is not None:
+                        return v
+            return default
+
+        def _posix_join(*parts: str) -> str:
+            parts2 = []
+            for p in parts:
+                if not p:
+                    continue
+                p = str(p)
+                parts2.append(p.strip("/"))
+            return "/".join(parts2)
+
+        # Try a few plausible locations (keeps this robust even if your TransferHandler
+        # uses slightly different joining rules).
+        def _candidate_remote_paths(base: str, subpath: str, fname: str) -> list[str]:
+            base = (base or "").strip()
+            subpath = (subpath or "").strip().strip("/")
+            fname = fname.strip().strip("/")
+            cands = []
+            # Most likely:
+            cands.append(_posix_join(base, subpath, fname))
+            # Some handlers include instrument folder:
+            cands.append(_posix_join(base, subpath, test_instrument, fname))
+            cands.append(_posix_join(base, test_instrument, fname))
+            return list(dict.fromkeys(cands))  # de-dupe, preserve order
+
+        results: list[tuple[str, bool, str]] = []
+
+        # --- Verify each target best-effort
+        for t in targets:
+            kind = (getattr(t, "kind", None) or t.__class__.__name__).lower()
+
+            # ---------------- SFTP ----------------
+            if "sftp" in kind:
+                try:
+                    import paramiko  # type: ignore
+                    import posixpath
+
+                    host = _get(t, "host", "hostname")
+                    port = int(_get(t, "port", default=22))
+                    user = _get(t, "username", "user", "login")
+                    password = _get(t, "password")
+                    keyfile = _get(t, "key_path", "keyfile", "identity_file", "private_key_path")
+
+                    remote_base = _get(t, "remote_root", "remote_base", "remote_dir", "base_dir", "root", default="")
+                    cands = _candidate_remote_paths(remote_base, remote_subpath, filename)
+
+                    ok = False
+                    found_path = ""
+                    delete_msg = "delete:skipped"
+
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(
+                        hostname=host,
+                        port=port,
+                        username=user,
+                        password=password,
+                        key_filename=keyfile,
+                        timeout=10,
+                        banner_timeout=10,
+                        auth_timeout=10,
+                    )
+                    sftp = ssh.open_sftp()
+
+                    # Verify
+                    for rp in cands:
+                        try:
+                            sftp.stat(rp)
+                            ok = True
+                            found_path = rp
+                            break
+                        except FileNotFoundError:
+                            continue
+                        except OSError:
+                            continue
+
+                    # Delete (best effort)
+                    if ok:
+                        try:
+                            sftp.remove(found_path)
+                            delete_msg = "delete:ok"
+                        except Exception as de:
+                            delete_msg = f"delete:failed({de})"
+
+                    try:
+                        sftp.close()
+                    finally:
+                        ssh.close()
+
+                    results.append(("sftp", ok and upload_ok, f"verified={ok} path={found_path or 'n/a'} {delete_msg}"))
+
+                except ImportError as exc:
+                    results.append(("sftp", False, f"verify:skipped(missing {exc.name})"))
+                except Exception as exc:
+                    results.append(("sftp", False, f"failed({exc})"))
+
+            # ---------------- S3 ----------------
+            elif kind.startswith("s3") or "s3" in kind:
+                try:
+                    import boto3  # type: ignore
+
+                    bucket = _get(t, "bucket", "bucket_name")
+                    if not bucket:
+                        results.append(("s3", False, "failed(missing bucket in target config)"))
+                        continue
+
+                    endpoint_url = _get(t, "endpoint_url", "endpoint", "url")
+                    region = _get(t, "region", "region_name")
+                    access_key = _get(t, "access_key", "aws_access_key_id", "key")
+                    secret_key = _get(t, "secret_key", "aws_secret_access_key", "secret")
+                    session_token = _get(t, "session_token", "aws_session_token")
+
+                    prefix = _get(t, "prefix", "key_prefix", "base_prefix", default="")
+                    cands = _candidate_remote_paths(prefix, remote_subpath, filename)
+
+                    sess = boto3.session.Session(
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        aws_session_token=session_token,
+                        region_name=region,
+                    )
+                    s3 = sess.client("s3", endpoint_url=endpoint_url)
+
+                    ok = False
+                    found_key = ""
+                    delete_msg = "delete:skipped"
+
+                    # Verify
+                    for key in cands:
+                        try:
+                            s3.head_object(Bucket=bucket, Key=key)
+                            ok = True
+                            found_key = key
+                            break
+                        except Exception:
+                            continue
+
+                    # Delete (best effort)
+                    if ok:
+                        try:
+                            s3.delete_object(Bucket=bucket, Key=found_key)
+                            delete_msg = "delete:ok"
+                        except Exception as de:
+                            delete_msg = f"delete:failed({de})"
+
+                    results.append(("s3", ok and upload_ok, f"verified={ok} key={found_key or 'n/a'} {delete_msg}"))
+
+                except ImportError as exc:
+                    results.append(("s3", False, f"verify:skipped(missing {exc.name})"))
+                except Exception as exc:
+                    results.append(("s3", False, f"failed({exc})"))
+
+        # Clean local file so scheduled scans don't keep re-sending it.
+        try:
+            if local_file.exists():
+                local_file.unlink()
+        except Exception:
+            pass
+
+        # Print summary
+        if not results:
+            _p("[pydaq] transfer self-test: no SFTP/S3 targets detected (skipped).")
+            return
+
+        all_ok = all(ok for _, ok, _ in results)
+        for kind, ok, detail in results:
+            _p(f"[pydaq] transfer self-test: {kind.upper():4s} => {'OK' if ok else 'FAIL'}  ({detail})")
+
+        _p(f"[pydaq] transfer self-test: {'PASS' if all_ok else 'FAIL'}")
 
     def _apply_configuration(self, config: ApplicationConfig) -> None:
         """Apply config changes: enable/disable instruments and reschedule jobs."""
