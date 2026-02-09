@@ -1,0 +1,3 @@
+-e git+https://github.com/joergklausen/pydaq.git@01334dae7555a46cf27555c96a5d2a14bd7dfc11#egg=pydaq
+PyYAML==6.0.3
+schedule==1.2.2

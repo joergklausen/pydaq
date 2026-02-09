@@ -32,7 +32,7 @@ Package internals:
 pydaq/
 ├─ __init__.py
 ├─ __main__.py          # `python -m pydaq -c configs/mkn.yml`
-├─ main.py              # orchestrator (scheduler + hot reload + worker threads)
+├─ pydaq.py              # orchestrator (scheduler + hot reload + worker threads)
 ├─ dashboard.py         # tiny HTTP JSON endpoints (stdlib only)
 ├─ instruments/
 │  ├─ instrument.py     # abstract base class + worker-thread queue
@@ -53,10 +53,48 @@ pydaq/
    └─ transfer_handler.py        # S3 + SFTP outbox upload with retries/backoff
 ```
 
+## Setup RPI
+1. Install Raspberry Pi OS Lite on the SD card.
+2. Boot the RPI and connect via SSH.
+3. Update the system:
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+4. Install Python 3.10+ and pip:
+```bashbash
+sudo apt install python3 python3-pip -y
+```
+5. Crerate .venv and install dependencies if not using editable mode:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+6. Clone the repository and navigate to the project directory:
+```bash
+git clone ... && cd pydaq
+```
+7. Install the package in editable mode:
+```bash
+pip install -e .
+```
+8. Create the `~/.secrets/` directory for secrets:
+```bashmkdir -p ~/.secrets
+chmod 700 ~/.secrets
+```   
+9. Create the `~/.ssh/` directory for SSH keys (if using SFTP):
+```bashmkdir -p ~/.ssh
+chmod 700 ~/.ssh
+```
+10. Update the config file (e.g. `configs/mkn.yml`) with the appropriate instrument and transfer settings, ensuring that paths to secrets are correctly specified. 
+
+11. (Optional) Set up the dashboard if enabled in the config (e.g. open port 8088 in the firewall).
+
+
 ## Usage
 
 ```bash
-python -m pydaq -c configs/mkn.yml
+python -m pydaq -c pydaq/configs/buc.yml
 ```
 
 Dashboard endpoints (if enabled in config):
@@ -103,8 +141,8 @@ The public key will be stored in `~/.ssh/id_ed25519.pub` and the private key in 
 
 ## Notes on `main.py`
 
-`pydaq/main.py` is the orchestrator module.
-Avoid creating a *top-level* `main.py` that shadows package imports unintentionally.
+`pydaq/pydaq.py` is the orchestrator module.
+Avoid creating a *top-level* `pydaq.py` that shadows package imports unintentionally.
 (Repo root scripts are fine, but keep the orchestrator inside the package.)
 
 ## Notes on instrument drivers
