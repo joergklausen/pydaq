@@ -59,7 +59,7 @@ network_monitor:
 instruments:
   49c:
     enabled: false
-    driver: thermo49c
+    driver: thermo
     io: 
       kind: serial
       device: /dev/ttyusb0 
@@ -84,7 +84,7 @@ instruments:
 
   49i:
     enabled: false
-    driver: thermo49i
+    driver: thermo
     io: 
       kind: socket 
       host: 192.168.3.190

@@ -12,7 +12,7 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Dict, Tuple
 
-from instruments.instrument import Instrument
+from pydaq.instruments.instrument import Instrument
 
 
 _DRIVER_REGISTRY: Dict[str, Tuple[str, str]] = {

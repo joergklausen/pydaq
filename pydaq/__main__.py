@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from pydaq.main import Orchestrator
+from main import Orchestrator
 
 
 def main() -> None:

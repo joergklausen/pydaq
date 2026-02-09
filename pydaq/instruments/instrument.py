@@ -31,16 +31,19 @@ If an instrument uses a binary protocol or streams continuously, drivers can ign
 
 from __future__ import annotations
 
+import importlib
+import inspect
+import socket
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
-from typing import Any, Callable, Dict, List, Optional
-import socket
-import time
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
-from pydaq.utils.storage_handler import HourlyCsvWriter, WriterConfig  # type: ignore
+from pydaq.utils.storage_handler import (HourlyCsvWriter,  # type: ignore
+                                         WriterConfig)
 
 try:
     import serial  # type: ignore
@@ -433,3 +436,73 @@ class Instrument:
         """Force staging of the current rolling file."""
         if self.writer:
             self.writer.stage_current()
+
+def get_driver_class(
+    driver: str | type["Instrument"],
+    *,
+    aliases: Mapping[str, str | list[str]] | None = None,
+) -> type["Instrument"]:
+    """
+    Resolve a driver identifier to an Instrument subclass.
+
+    Accepts:
+      - an Instrument subclass (returned unchanged)
+      - "package.module:ClassName"  (recommended)
+      - "package.module.ClassName"
+      - legacy short names like "49i" / "thermo49i" via an alias map
+
+    The import happens only when this function is called (helps avoid circular imports).
+    """
+    # Already a class?
+    if inspect.isclass(driver) and issubclass(driver, Instrument):
+        return driver
+
+    if not isinstance(driver, str) or not driver.strip():
+        raise TypeError(f"driver must be a non-empty str or Instrument subclass, got {type(driver)}")
+
+    name = driver.strip()
+
+    # Default legacy aliases (try multiple candidates because names may differ across refactors)
+    default_aliases: dict[str, str | list[str]] = {
+        "49i": [
+            "pydaq.instruments.thermo:Thermo49i",
+            "pydaq.instruments.thermo:Thermo",
+            "pydaq.instruments.thermo49i:Thermo49i",
+            "pydaq.instruments.thermo49i:Thermo",
+        ],
+        "thermo49i": [
+            "pydaq.instruments.thermo:Thermo49i",
+            "pydaq.instruments.thermo:Thermo",
+            "pydaq.instruments.thermo49i:Thermo49i",
+            "pydaq.instruments.thermo49i:Thermo",
+        ],
+    }
+
+    if aliases:
+        default_aliases.update(dict(aliases))
+
+    target = default_aliases.get(name, name)
+    candidates = target if isinstance(target, list) else [target]
+
+    last_err: Exception | None = None
+
+    for cand in candidates:
+        try:
+            if ":" in cand:
+                mod_name, attr = cand.split(":", 1)
+            else:
+                mod_name, attr = cand.rsplit(".", 1)
+
+            mod = importlib.import_module(mod_name)
+            cls: Any = getattr(mod, attr)
+
+            if not inspect.isclass(cls) or not issubclass(cls, Instrument):
+                raise TypeError(f"{cand} resolved to {cls!r}, not an Instrument subclass")
+
+            return cls
+
+        except Exception as e:
+            last_err = e
+
+    raise ImportError(f"Could not resolve driver '{driver}'. Last error: {last_err}") from last_err
+
