@@ -1,7 +1,8 @@
 """Module entry point.
 
 Example:
-    python -m pydaq -c configs/mkn.yml
+    python -m pydaq -c pydaq/configs/mkn.yml
+    python -m pydaq -c pydaq/configs/buc.yml
 """
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from main import Orchestrator
+from pydaq.pydaq import Orchestrator
 
 
 def main() -> None:
