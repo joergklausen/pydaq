@@ -19,7 +19,7 @@ def main() -> None:
         "-c",
         "--config",
         type=Path,
-        required=True,
+        default=Path("pydaq/configs/buc.yml"),
         help="Path to station YAML config (e.g. configs/mkn.yml)",
     )
     args = parser.parse_args()

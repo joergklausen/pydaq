@@ -89,7 +89,7 @@ class Orchestrator:
             level_console=self.application_config.logging.level_console,
             level_file=self.application_config.logging.level_file,
         )
-        self.logger.info("pydaq started station=%s config=%s", self.application_config.station.id, self.config_path)
+        self.logger.info("=== PYDAQ started station=%s config=%s", self.application_config.station.id, self.config_path)
 
         for directory in (
             self.application_config.paths.data,
@@ -238,8 +238,8 @@ class Orchestrator:
 
     def _build_transfer_handler(self, config: ApplicationConfig) -> Optional[TransferHandler]:
         """Construct a TransferHandler based on config, or return ``None``."""
-        if not config.transfer.enabled:
-            return None
+        # if not config.transfer.enabled:
+        #     return None
         targets: list[TransferTarget] = []
         for target_config in config.transfer.targets or []:
             if not target_config.enabled:
@@ -371,6 +371,7 @@ class Orchestrator:
         cfg = self.application_config
         th = self.transfer_handler
         if not cfg or not th:
+            self.logger.warning("[pydaq] transfer self-test: skipped (missing config or transfer handler)")
             return
         if not getattr(cfg.transfer, "enabled", False):
             return
@@ -398,10 +399,7 @@ class Orchestrator:
         )
         local_file.write_text(payload, encoding="utf-8")
 
-        def _p(msg: str) -> None:
-            print(msg, flush=True)
-
-        _p(f"[pydaq] transfer self-test: uploading {local_file.name} to configured targets ...")
+        self.logger.info(f"[pydaq] transfer self-test: uploading {local_file.name} to configured targets ...")
 
         upload_ok = False
         try:
@@ -414,7 +412,7 @@ class Orchestrator:
             upload_ok = True
         except Exception as exc:
             self.logger.exception("transfer self-test upload failed (%s)", exc)
-            _p(f"[pydaq] transfer self-test: UPLOAD FAILED ({exc})")
+            self.logger.exception(f"[pydaq] transfer self-test: UPLOAD FAILED ({exc})")
 
         # Helpers to access target attributes robustly (dataclass/object/dict)
         def _get(obj, *names, default=None):
@@ -468,12 +466,25 @@ class Orchestrator:
                     import posixpath
 
                     host = _get(t, "host", "hostname")
-                    port = int(_get(t, "port", default=22))
+                    if not host:
+                        # Missing hostname: record failure and skip this target
+                        results.append(("sftp", False, "failed(missing host in target)"))
+                        continue
+                    host = str(host)
+
+                    port_raw = _get(t, "port", default=22)
+                    try:
+                        # Convert via str(...) so mypy sees a str argument for int()
+                        port = int(str(port_raw))
+                    except (TypeError, ValueError):
+                        # Fallback to default port when conversion fails
+                        port = 22
                     user = _get(t, "username", "user", "login")
                     password = _get(t, "password")
                     keyfile = _get(t, "key_path", "keyfile", "identity_file", "private_key_path")
 
                     remote_base = _get(t, "remote_root", "remote_base", "remote_dir", "base_dir", "root", default="")
+                    remote_base = str(remote_base or "")
                     cands = _candidate_remote_paths(remote_base, remote_subpath, filename)
 
                     ok = False
@@ -543,6 +554,7 @@ class Orchestrator:
                     session_token = _get(t, "session_token", "aws_session_token")
 
                     prefix = _get(t, "prefix", "key_prefix", "base_prefix", default="")
+                    prefix = str(prefix or "")
                     cands = _candidate_remote_paths(prefix, remote_subpath, filename)
 
                     sess = boto3.session.Session(
@@ -591,14 +603,14 @@ class Orchestrator:
 
         # Print summary
         if not results:
-            _p("[pydaq] transfer self-test: no SFTP/S3 targets detected (skipped).")
+            self.logger.warning("[pydaq] transfer self-test: no SFTP/S3 targets detected (skipped).")
             return
 
         all_ok = all(ok for _, ok, _ in results)
         for kind, ok, detail in results:
-            _p(f"[pydaq] transfer self-test: {kind.upper():4s} => {'OK' if ok else 'FAIL'}  ({detail})")
+            self.logger.info(f"[pydaq] transfer self-test: {kind.upper():4s} => {'OK' if ok else 'FAIL'}  ({detail})")
 
-        _p(f"[pydaq] transfer self-test: {'PASS' if all_ok else 'FAIL'}")
+        self.logger.info(f"[pydaq] transfer self-test: {'PASS' if all_ok else 'FAIL'}")
 
     def _apply_configuration(self, config: ApplicationConfig) -> None:
         """Apply config changes: enable/disable instruments and reschedule jobs."""

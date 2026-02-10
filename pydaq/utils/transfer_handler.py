@@ -48,6 +48,14 @@ class TransferTarget:
         """
         raise NotImplementedError
 
+    def exists(self, remote_relative_path: str) -> TransferResult:
+        """Best-effort: verify that a remote object exists."""
+        return TransferResult(False, self.kind, "exists() not implemented")
+
+    def delete(self, remote_relative_path: str) -> TransferResult:
+        """Best-effort: delete remote object (may fail depending on permissions)."""
+        return TransferResult(False, self.kind, "delete() not implemented")
+
 
 def _sleep_backoff(attempt: int, base_seconds: float, max_seconds: float) -> None:
     """Sleep using exponential backoff with jitter."""
@@ -145,7 +153,8 @@ class SftpTarget(TransferTarget):
             TransferResult with remote path in ``detail`` on success.
         """
         try:
-            import paramiko
+            import importlib
+            paramiko = importlib.import_module("paramiko")
         except Exception as e:
             return TransferResult(False, self.kind, f"paramiko not available: {e}")
 
@@ -184,6 +193,58 @@ class SftpTarget(TransferTarget):
         except Exception as e:
             return TransferResult(False, self.kind, str(e))
 
+    def _remote_path(self, remote_relative_path: str) -> str:
+        return (PurePosixPath(self.remote_base) / remote_relative_path).as_posix()
+
+    def _open_sftp(self):
+        try:
+            import importlib
+            paramiko = importlib.import_module("paramiko")
+        except Exception as e:
+            raise RuntimeError(f"paramiko not available: {e}") from e
+
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(
+            hostname=self.host,
+            port=self.port,
+            username=self.user,
+            key_filename=str(Path(self.key).expanduser()) if self.key else None,
+            timeout=20,
+        )
+        sftp = client.open_sftp()
+        return client, sftp
+
+    def exists(self, remote_relative_path: str) -> TransferResult:
+        remote_path = self._remote_path(remote_relative_path)
+        try:
+            client, sftp = self._open_sftp()
+            try:
+                sftp.stat(remote_path)
+                return TransferResult(True, self.kind, remote_path)
+            finally:
+                try:
+                    sftp.close()
+                finally:
+                    client.close()
+        except Exception as e:
+            return TransferResult(False, self.kind, str(e))
+
+    def delete(self, remote_relative_path: str) -> TransferResult:
+        remote_path = self._remote_path(remote_relative_path)
+        try:
+            client, sftp = self._open_sftp()
+            try:
+                sftp.remove(remote_path)
+                return TransferResult(True, self.kind, remote_path)
+            finally:
+                try:
+                    sftp.close()
+                finally:
+                    client.close()
+        except Exception as e:
+            return TransferResult(False, self.kind, str(e))
+
 
 class S3Target(TransferTarget):
     """S3 upload target (requires ``boto3``).
@@ -217,7 +278,6 @@ class S3Target(TransferTarget):
         if not self.bucket:
             raise ValueError("S3Target requires 'bucket' parameter.")
 
-
     def upload(self, local_path: Path, remote_relative_path: str) -> TransferResult:
         """Upload using S3.
 
@@ -225,9 +285,12 @@ class S3Target(TransferTarget):
             TransferResult with ``s3://...`` URI in ``detail`` on success.
         """
         try:
-            import boto3
-            from boto3.session import Session as BotoSession
-            from botocore.config import Config as BotocoreConfig
+            import importlib
+
+            boto3_mod = importlib.import_module("boto3")
+            botocore_config_mod = importlib.import_module("botocore.config")
+            BotoSession = boto3_mod.session.Session
+            BotocoreConfig = botocore_config_mod.Config
         except Exception as e:
             return TransferResult(False, self.kind, f"boto3 not available: {e}")
 
@@ -251,6 +314,55 @@ class S3Target(TransferTarget):
                 config=cfg,
             )
             s3.upload_file(local_path.as_posix(), self.bucket, key)
+            return TransferResult(True, self.kind, f"s3://{self.bucket}/{key}")
+        except Exception as e:
+            return TransferResult(False, self.kind, str(e))
+
+    def _make_key(self, remote_relative_path: str) -> str:
+        return str(PurePosixPath(self.prefix) / remote_relative_path).lstrip("/")
+
+    def _make_client(self):
+        try:
+            import importlib
+
+            boto3_mod = importlib.import_module("boto3")
+            botocore_config_mod = importlib.import_module("botocore.config")
+            BotoSession = boto3_mod.session.Session
+            BotocoreConfig = botocore_config_mod.Config
+        except Exception as e:
+            raise RuntimeError(f"boto3 not available: {e}") from e
+
+        session = BotoSession(
+            aws_access_key_id=self.access_key_id,
+            aws_secret_access_key=self.secret_access_key,
+            region_name=self.region or None,
+        )
+        cfg = BotocoreConfig(
+            s3={"addressing_style": self.addressing_style},
+            proxies=None,
+        )
+        return session.client(
+            "s3",
+            endpoint_url=self.endpoint_url or None,
+            verify=self.verify,
+            config=cfg,
+        )
+
+
+    def exists(self, remote_relative_path: str) -> TransferResult:
+        key = self._make_key(remote_relative_path)
+        try:
+            s3 = self._make_client()
+            s3.head_object(Bucket=self.bucket, Key=key)
+            return TransferResult(True, self.kind, f"s3://{self.bucket}/{key}")
+        except Exception as e:
+            return TransferResult(False, self.kind, str(e))
+
+    def delete(self, remote_relative_path: str) -> TransferResult:
+        key = self._make_key(remote_relative_path)
+        try:
+            s3 = self._make_client()
+            s3.delete_object(Bucket=self.bucket, Key=key)
             return TransferResult(True, self.kind, f"s3://{self.bucket}/{key}")
         except Exception as e:
             return TransferResult(False, self.kind, str(e))
@@ -315,7 +427,7 @@ class TransferHandler:
                 remove_on_success=remove_on_success_map.get(instrument_name, True),
             )
 
-    def _transmit_one(self, local_path: Path, remote_path: str, remove_on_success: bool) -> None:
+    def _transmit_one(self, local_path: Path, remote_path: str, remove_on_success: bool) -> List[TransferResult]:
         # Remote path is flat: <remote_path>/<filename>
         remote_relative_path = (PurePosixPath(remote_path) / local_path.name).as_posix().lstrip("/")
         results: List[TransferResult] = []
@@ -352,3 +464,102 @@ class TransferHandler:
                     remote_relative_path,
                     ", ".join(f"{r.target}:{r.detail}" for r in results),
                 )
+
+        return results
+
+    @staticmethod
+    def _build_remote_relative_path(remote_path: str, filename: str) -> str:
+        return (PurePosixPath(remote_path) / filename).as_posix().lstrip("/")
+
+    def startup_selftest(
+        self,
+        station_id: str,
+        *,
+        instrument_name: str = "__selftest__",
+        remote_root: str = "_pydaq_selftest",
+        cleanup_local: bool = True,
+        verify_retries: int = 3,
+    ) -> bool:
+        """
+        Create a tiny test file, upload it to all configured targets, verify it exists,
+        then attempt deletion (best-effort).
+
+        Returns:
+            True if upload+verify succeeded for all targets that are configured.
+        """
+        if not self.targets:
+            if self.logger:
+                self.logger.info("[selftest] skipped (no targets)")
+            return True
+
+        out_dir = self.outbox_root / instrument_name
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        filename = f"pydaq_selftest_{station_id}.txt"
+        local_path = out_dir / filename
+
+        local_path.write_text(
+            "pydaq transfer self-test\n"
+            f"station={station_id}\n"
+            f"dtm={time.strftime('%Y-%m-%dT%H:%M:%S')}\n",
+            encoding="utf-8",
+        )
+
+        remote_path = f"{remote_root}/{station_id}"
+        remote_rel = self._build_remote_relative_path(remote_path, filename)
+
+        if self.logger:
+            self.logger.info("[selftest] upload start file=%s remote=%s", local_path.name, remote_rel)
+
+        # Reuse existing upload logic, but keep local file for verify/delete phase.
+        upload_results = self._transmit_one(local_path, remote_path, remove_on_success=False)
+
+        verify_results: list[TransferResult] = []
+        delete_results: list[TransferResult] = []
+
+        # verify + delete aligned with self.targets order (zip is safe)
+        for target, up in zip(self.targets, upload_results):
+            if not up.ok:
+                verify_results.append(TransferResult(False, target.kind, "skip (upload failed)"))
+                delete_results.append(TransferResult(False, target.kind, "skip (upload failed)"))
+                continue
+
+            # verify with small retry (some backends can be briefly eventual-consistent)
+            v: TransferResult = TransferResult(False, target.kind, "not verified")
+            for attempt in range(1, max(1, verify_retries) + 1):
+                v = target.exists(remote_rel)
+                if v.ok:
+                    break
+                _sleep_backoff(attempt, base_seconds=1.0, max_seconds=5.0)
+            verify_results.append(v)
+
+            # delete best-effort (may fail depending on rights)
+            if v.ok:
+                delete_results.append(target.delete(remote_rel))
+            else:
+                delete_results.append(TransferResult(False, target.kind, "skip (not verified)"))
+
+        ok_upload = all(r.ok for r in upload_results) if self.require_all_targets else any(r.ok for r in upload_results)
+        ok_verify = all(r.ok for r in verify_results) if self.require_all_targets else any(r.ok for r in verify_results)
+
+        # Per-target log line (same logger path as normal transfers)
+        if self.logger:
+            for t, up, vr, dr in zip(self.targets, upload_results, verify_results, delete_results):
+                self.logger.info(
+                    "[selftest] target=%s upload=%s verify=%s delete=%s detail=%s",
+                    getattr(t, "kind", "target"),
+                    up.ok,
+                    vr.ok,
+                    dr.ok,
+                    (vr.detail or up.detail or dr.detail),
+                )
+            self.logger.info("[selftest] result upload_ok=%s verify_ok=%s", ok_upload, ok_verify)
+
+        if cleanup_local:
+            try:
+                local_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        # For a "confirmation that transfers work", treat verify as the key signal.
+        return bool(ok_upload and ok_verify)
