@@ -63,7 +63,7 @@ instruments:
     driver: Thermo49i
     io: 
       kind: socket 
-      host: 192.168.100.13
+      host: 192.168.100.49
       port: 9880
       timeout: 5
       sleep: 0.5

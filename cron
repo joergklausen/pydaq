@@ -1,0 +1,1 @@
+*/5 * * * * /bin/bash /home/$USER/Documents/git/pydaq/bucdaq.sh >> /home/$USER/Documents/git/pydaq/bucdaq.log 2>&1
