@@ -1,2 +1,7 @@
+# generic setup
 @reboot /bin/bash /home/$USER/Documents/git/pydaq/pydaq.sh >> /home/$USER/Documents/git/pydaq/pydaq.log 2>&1
 */5 * * * * /bin/bash /home/$USER/Documents/git/pydaq/pydaq.sh >> /home/$USER/Documents/git/pydaq/pydaq.log 2>&1
+
+# setup for BUC (for user: gaw)
+@reboot /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh pydaq/configs/buc.yml >> /home/gaw/Documents/git/pydaq/pydaq-buc.log 2>&1
+*/5 * * * * /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh pydaq/configs/buc.yml >> /home/gaw/Documents/git/pydaq/pydaq-buc.log 2>&1
