@@ -5,7 +5,7 @@ station:
   timezone: UTC
 
 paths:
-  root: ~/pydaq/buc
+  root: ~/Documents/buc
   data: data
   outbox: outbox
   logs: logs
@@ -35,10 +35,10 @@ transfer:
       parameters:
         endpoint_url: https://servicedevt.meteoswiss.ch/
         bucket: ch.meteoswiss.gawkenya
-        prefix: buc
+        prefix: buc/incoming
         region: eu-central-1
-        access_key_id: ~/.secrets/s3_access_key_id
-        secret_access_key: ~/.secrets/s3_secret_access_key
+        access_key: ~/.secrets/s3_access_key
+        secret_key: ~/.secrets/s3_secret_key
         verify: true
         addressing_style: path
     sftp:

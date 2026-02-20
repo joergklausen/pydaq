@@ -83,7 +83,7 @@ class HourlyCsvWriter:
 
     def _hour_key(self, dtm: datetime) -> str:
         """Compute hour key used for rollover decisions."""
-        return dtm.strftime("%Y%m%d_%H")
+        return dtm.strftime("%Y%m%d%H")
 
     def _data_path_for_hour(self, dtm: datetime, hour_key: str) -> Path:
         """Return the authoritative data CSV path for a given timestamp/hour."""
@@ -92,7 +92,7 @@ class HourlyCsvWriter:
         prefix = (self.config.file_prefix or self.instrument_name).strip()
         directory = self.data_directory / year / month
         directory.mkdir(parents=True, exist_ok=True)
-        return directory / f"{prefix}-{hour_key}00.csv"
+        return directory / f"{prefix}-{hour_key}.csv"
 
     def _ensure_open_for_timestamp(self, dtm: datetime) -> None:
         """Ensure the correct hourly CSV file is open for ``dtm``."""
