@@ -17,11 +17,10 @@ dev = ["pytest>=8.0", "ruff>=0.6"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+  "integration: integration tests",
+]
 
 [tool.ruff]
 line-length = 100
 
-[tool.pytest.ini_options]
-markers = [
-  "integration: integration tests",
-]
