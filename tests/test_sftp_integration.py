@@ -15,8 +15,7 @@ The station config path is provided on the pytest command line via:
     pytest ... --station-config /path/to/station.yml
 """
 
-import importlib
-import importlib.util
+import sys
 import uuid
 from pathlib import Path
 
@@ -30,52 +29,32 @@ pytestmark = pytest.mark.integration
 def _load_orchestrator_class():
     """Import ``Orchestrator`` from the current PYDAQ checkout.
 
-    Tries the package layout first, then falls back to loading the module
-    from ``pydaq/pydaq.py`` or ``pydaq.py`` directly.
-
     Returns:
         The Orchestrator class.
 
     Raises:
-        ImportError: If Orchestrator could not be imported from any expected location.
+        ImportError: If Orchestrator could not be imported.
     """
+    repo_root = Path(__file__).resolve().parents[1]
+
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+
     errors: list[str] = []
 
-    # Most likely layout for your repository.
-    for module_name in ("pydaq.pydaq", "pydaq"):
-        try:
-            module = importlib.import_module(module_name)
-            orchestrator = getattr(module, "Orchestrator", None)
-            if orchestrator is not None:
-                return orchestrator
-            errors.append(f"{module_name}: imported, but no Orchestrator attribute found")
-        except Exception as exc:
-            errors.append(f"{module_name}: {exc!r}")
+    try:
+        from pydaq.pydaq import Orchestrator
 
-    # Fallback: import from file path.
-    repo_root = Path(__file__).resolve().parents[1]
-    for module_path in (
-        repo_root / "pydaq" / "pydaq.py",
-        repo_root / "pydaq.py",
-    ):
-        if not module_path.exists():
-            errors.append(f"{module_path}: file not found")
-            continue
+        return Orchestrator
+    except Exception as exc:
+        errors.append(f"from pydaq.pydaq import Orchestrator -> {exc!r}")
 
-        try:
-            spec = importlib.util.spec_from_file_location("pydaq_main_module", module_path)
-            if spec is None or spec.loader is None:
-                errors.append(f"{module_path}: could not create import spec")
-                continue
+    try:
+        from pydaq import Orchestrator
 
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            orchestrator = getattr(module, "Orchestrator", None)
-            if orchestrator is not None:
-                return orchestrator
-            errors.append(f"{module_path}: imported, but no Orchestrator attribute found")
-        except Exception as exc:
-            errors.append(f"{module_path}: {exc!r}")
+        return Orchestrator
+    except Exception as exc:
+        errors.append(f"from pydaq import Orchestrator -> {exc!r}")
 
     joined = "\n".join(errors)
     raise ImportError(f"Could not import Orchestrator from the current PYDAQ checkout.\n{joined}")
@@ -83,15 +62,7 @@ def _load_orchestrator_class():
 
 @pytest.fixture()
 def orchestrator(monkeypatch: pytest.MonkeyPatch, station_config_path: Path):
-    """Build an Orchestrator while suppressing unrelated runtime side effects.
-
-    We want the real config loading and real transfer-handler construction,
-    but we do not want this integration test to:
-    - start instrument threads
-    - start the dashboard
-    - run the startup transfer self-test
-    - start or refresh the network monitor
-    """
+    """Build an Orchestrator while suppressing unrelated runtime side effects."""
     Orchestrator = _load_orchestrator_class()
 
     monkeypatch.setattr(Orchestrator, "_startup_transfer_selftest", lambda self: None)
