@@ -1,21 +1,19 @@
+from __future__ import annotations
+
 """Integration test for SFTP outbox transmission via the real PYDAQ machinery.
 
-This test intentionally goes through the same configuration-loading and transfer-handler
-construction path as the orchestrator itself: :class:`Orchestrator` loads the YAML config
-and builds its :class:`TransferHandler`, which in turn uses the configured
-:class:`SftpTarget` implementation for upload / exists / delete operations.
+This test uses the same core transfer path as the orchestrator:
 
-The test is intentionally conservative:
+- build :class:`Orchestrator` from a real station YAML
+- let it construct the real :class:`TransferHandler`
+- write one probe file into a dedicated outbox instrument folder
+- call ``TransferHandler.transmit_instrument(...)``
+- verify that the uploaded file exists on every configured SFTP target
 
-- It uses a station.yml path passed via ``pytest --station-config ...``.
-- It suppresses unrelated orchestrator side effects (instrument startup, dashboard,
-  network monitor, startup self-test) so the test exercises transfer logic only.
-- It writes exactly one probe file into a dedicated synthetic outbox folder, then calls
-  ``TransferHandler.transmit_instrument(...)`` on that folder.
-- It verifies that the remote object exists on every configured SFTP target.
+The station config path is provided on the pytest command line via:
+
+    pytest ... --station-config /path/to/station.yml
 """
-
-from __future__ import annotations
 
 import importlib
 import importlib.util
@@ -30,38 +28,70 @@ pytestmark = pytest.mark.integration
 
 
 def _load_orchestrator_class():
-    """Import ``Orchestrator`` robustly from the local project."""
-    candidates: list[tuple[str, str]] = [
-        ("pydaq", "Orchestrator"),
-        ("pydaq.pydaq", "Orchestrator"),
-    ]
+    """Import ``Orchestrator`` from the current PYDAQ checkout.
 
-    for module_name, attr_name in candidates:
+    Tries the package layout first, then falls back to loading the module
+    from ``pydaq/pydaq.py`` or ``pydaq.py`` directly.
+
+    Returns:
+        The Orchestrator class.
+
+    Raises:
+        ImportError: If Orchestrator could not be imported from any expected location.
+    """
+    errors: list[str] = []
+
+    # Most likely layout for your repository.
+    for module_name in ("pydaq.pydaq", "pydaq"):
         try:
             module = importlib.import_module(module_name)
-            orchestrator = getattr(module, attr_name, None)
+            orchestrator = getattr(module, "Orchestrator", None)
             if orchestrator is not None:
                 return orchestrator
-        except Exception:
+            errors.append(f"{module_name}: imported, but no Orchestrator attribute found")
+        except Exception as exc:
+            errors.append(f"{module_name}: {exc!r}")
+
+    # Fallback: import from file path.
+    repo_root = Path(__file__).resolve().parents[1]
+    for module_path in (
+        repo_root / "pydaq" / "pydaq.py",
+        repo_root / "pydaq.py",
+    ):
+        if not module_path.exists():
+            errors.append(f"{module_path}: file not found")
             continue
 
-    repo_root = Path(__file__).resolve().parents[1]
-    pydaq_script = repo_root / "pydaq.py"
-    if pydaq_script.exists():
-        spec = importlib.util.spec_from_file_location("pydaq_main_module", pydaq_script)
-        if spec and spec.loader:
+        try:
+            spec = importlib.util.spec_from_file_location("pydaq_main_module", module_path)
+            if spec is None or spec.loader is None:
+                errors.append(f"{module_path}: could not create import spec")
+                continue
+
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             orchestrator = getattr(module, "Orchestrator", None)
             if orchestrator is not None:
                 return orchestrator
+            errors.append(f"{module_path}: imported, but no Orchestrator attribute found")
+        except Exception as exc:
+            errors.append(f"{module_path}: {exc!r}")
 
-    raise ImportError("Could not import Orchestrator from the current PYDAQ checkout.")
+    joined = "\n".join(errors)
+    raise ImportError(f"Could not import Orchestrator from the current PYDAQ checkout.\n{joined}")
 
 
 @pytest.fixture()
 def orchestrator(monkeypatch: pytest.MonkeyPatch, station_config_path: Path):
-    """Build an orchestrator with transfer setup intact but unrelated runtime effects disabled."""
+    """Build an Orchestrator while suppressing unrelated runtime side effects.
+
+    We want the real config loading and real transfer-handler construction,
+    but we do not want this integration test to:
+    - start instrument threads
+    - start the dashboard
+    - run the startup transfer self-test
+    - start or refresh the network monitor
+    """
     Orchestrator = _load_orchestrator_class()
 
     monkeypatch.setattr(Orchestrator, "_startup_transfer_selftest", lambda self: None)
@@ -81,7 +111,7 @@ def test_sftp_transmit_from_outbox_uses_same_transfer_machinery_as_orchestrator(
     orchestrator,
     station_config_path: Path,
 ) -> None:
-    """Upload one probe file from a synthetic outbox folder to the configured SFTP sink(s)."""
+    """Upload one probe file from a synthetic outbox folder to configured SFTP target(s)."""
     cfg = orchestrator.application_config
     assert cfg is not None, "Orchestrator did not load an application config."
 
@@ -128,7 +158,8 @@ def test_sftp_transmit_from_outbox_uses_same_transfer_machinery_as_orchestrator(
             exists_result = target.exists(remote_relative_path)
             assert exists_result.ok, (
                 "Probe file was not found on the configured SFTP target. "
-                f"target={target!r} remote_relative_path={remote_relative_path!r} "
+                f"target={target!r} "
+                f"remote_relative_path={remote_relative_path!r} "
                 f"detail={exists_result.detail!r}"
             )
 
