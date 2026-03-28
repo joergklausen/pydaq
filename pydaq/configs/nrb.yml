@@ -131,7 +131,7 @@ instruments:
       transmit_delay_seconds: 15
       print_every_seconds: 30
     output:
-      # format: csv_zip
+      format: csv_zip
       remote_path: fidas
       remove_on_success: true
     init: {}
