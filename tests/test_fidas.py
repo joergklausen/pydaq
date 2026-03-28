@@ -1,14 +1,16 @@
-from __future__ import annotations
-
-import logging
-from datetime import datetime, timezone
 from pathlib import Path
+import sys
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import datetime as dt
+
+import polars as pl
 import pytest
 
-import pydaq.instruments.instrument as instrument_mod
 from pydaq.instruments.fidas import FIDAS
-
 
 class DummyWriter:
     """Minimal in-memory writer used to isolate the FIDAS unit tests."""
