@@ -33,7 +33,7 @@ transfer:
     s3:
       enabled: true
       parameters:
-        endpoint_url: https://servicedevt.meteoswiss.ch/
+        endpoint_url: https://service.meteoswiss.ch/
         bucket: ch.meteoswiss.gawkenya
         prefix: buc/incoming
         region: eu-central-1
