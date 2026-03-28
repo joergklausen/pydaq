@@ -175,7 +175,10 @@ class LineComms:
             return ""
 
         last_err: Optional[Exception] = None
-        for attempt in range(max(1, self.cfg.retries + 1)):
+        max_attempts = max(1, self.cfg.retries + 1)
+        endpoint = self.cfg.port if self.cfg.kind == "serial" else f"{self.cfg.host}:{self.cfg.port_tcp}"
+
+        for attempt in range(max_attempts):
             try:
                 with self._lock:
                     if self.cfg.kind == "serial":
@@ -183,14 +186,23 @@ class LineComms:
                     return self._request_tcp(cmd, prefix=prefix, terminator=terminator)
             except Exception as exc:
                 last_err = exc
+                if self.logger:
+                    level = self.logger.error if attempt == (max_attempts - 1) else self.logger.warning
+                    level(
+                        "IO request failed kind=%s endpoint=%s cmd=%s attempt=%s/%s err=%s",
+                        self.cfg.kind,
+                        endpoint,
+                        cmd,
+                        attempt + 1,
+                        max_attempts,
+                        exc,
+                    )
                 # Force clean reopen on next attempt
                 self.close()
-                if attempt < self.cfg.retries:
+                if attempt < (max_attempts - 1):
                     time.sleep(self.cfg.backoff_seconds * (attempt + 1))
                 continue
 
-        if last_err and self.logger:
-            self.logger.warning("IO request failed cmd=%s err=%s", cmd, last_err)
         return ""
 
     def _ensure_serial_open(self) -> None:
@@ -311,6 +323,7 @@ class Instrument:
         self._stop_event = Event()
         self._thread: Optional[Thread] = None
         self._state_lock = Lock()
+        self._consecutive_empty_records = 0
 
         self.writer: Optional[HourlyCsvWriter] = None
         if headers:
@@ -416,6 +429,16 @@ class Instrument:
 
         record = self.get_record()
         if not record:
+            with self._state_lock:
+                self._consecutive_empty_records += 1
+                count = self._consecutive_empty_records
+                last_error = self.state.last_error
+            if count == 1 or (count % 10) == 0:
+                self.logger.error(
+                    "no record produced consecutive=%s%s",
+                    count,
+                    f" last_error={last_error}" if last_error else "",
+                )
             return
 
         # Inject dtm if missing so the writer can roll by hour.
@@ -425,8 +448,14 @@ class Instrument:
                 record[dt_name] = utc_timestamp_string()
 
         with self._state_lock:
+            previous_empty = self._consecutive_empty_records
+            self._consecutive_empty_records = 0
             self.state.latest = record
             self.state.last_sample_ts = time.time()
+            self.state.last_error = ""
+
+        if previous_empty:
+            self.logger.info("recovered after %s empty acquisition cycle(s)", previous_empty)
 
         if self.writer:
             self.writer.append(record)
@@ -475,14 +504,6 @@ def get_driver_class(
             "pydaq.instruments.thermo:Thermo",
             "pydaq.instruments.thermo49i:Thermo49i",
             "pydaq.instruments.thermo49i:Thermo",
-        ],
-        "fidas": [
-            "pydaq.instruments.fidas:FIDAS",
-            "pydaq.instruments.fidas:Fidas",
-        ],
-        "FIDAS": [
-            "pydaq.instruments.fidas:FIDAS",
-            "pydaq.instruments.fidas:Fidas",
         ],
     }
 

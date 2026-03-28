@@ -111,6 +111,9 @@ class Thermo49Base(Instrument):
                 resp = self._send(cmd_str)
                 if resp:
                     self.logger.info("get_config cmd=%s resp=%s", cmd_str, resp)
+                else:
+                    self.state.last_error = f"no response to get_config cmd={cmd_str}"
+                    self.logger.error("no response to get_config cmd=%s", cmd_str)
 
         for cmd in init_cfg.get("set_config", []) or []:
             cmd_str = str(cmd).strip()
@@ -118,6 +121,9 @@ class Thermo49Base(Instrument):
                 resp = self._send(cmd_str)
                 if resp:
                     self.logger.info("set_config cmd=%s resp=%s", cmd_str, resp)
+                else:
+                    self.state.last_error = f"no response to set_config cmd={cmd_str}"
+                    self.logger.error("no response to set_config cmd=%s", cmd_str)
 
     def get_record(self) -> Dict[str, Any]:
         """Retrieve one record from the instrument.
@@ -135,10 +141,14 @@ class Thermo49Base(Instrument):
 
         raw = self._send(cmd)
         if not raw:
+            self.state.last_error = f"no response to sample command '{cmd}'"
+            self.logger.error("no response to sample command cmd=%s", cmd)
             return {}
 
         payload = _strip_echo_and_checksum(raw, cmd)
         if not payload:
+            self.state.last_error = f"empty payload after stripping echo/checksum for cmd '{cmd}'"
+            self.logger.error("empty payload after stripping echo/checksum cmd=%s raw=%r", cmd, raw[:200])
             return {}
 
         record: Dict[str, Any] = {"dtm": dtm}
@@ -147,6 +157,8 @@ class Thermo49Base(Instrument):
         if cmd.lower() in {"o3", "o3?"}:
             value = _first_float(payload)
             if value is None:
+                self.state.last_error = f"could not parse scalar response for cmd '{cmd}'"
+                self.logger.error("could not parse scalar response cmd=%s payload=%r", cmd, payload[:200])
                 return {}
             scale = float(processing_cfg.get("o3_scale", 1.0))
             record["o3"] = value * scale
@@ -154,6 +166,8 @@ class Thermo49Base(Instrument):
 
         parsed = self._parse_fields(payload)
         if not parsed:
+            self.state.last_error = f"could not parse record response for cmd '{cmd}'"
+            self.logger.error("could not parse record response cmd=%s payload=%r", cmd, payload[:200])
             return {}
 
         record.update(parsed)

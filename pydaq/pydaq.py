@@ -280,7 +280,6 @@ class Orchestrator:
 
         driver_parameters = {
             "io": instrument_config.io,
-            "schedule": asdict(instrument_config.schedule),
             "init": instrument_config.init,
             "processing": instrument_config.processing,
             "output": asdict(instrument_config.output),
@@ -329,11 +328,26 @@ class Orchestrator:
             schedule.every(instrument_config.schedule.transmit_every_seconds).seconds.do(transmit_job).tag(tag)
 
     def _log_latest_for_instrument(self, instrument_name: str) -> None:
-        """Log the latest record for one instrument (debug/ops convenience)."""
+        """Log the latest record for one instrument and surface stale/no-data states."""
         instrument = self.instruments.get(instrument_name)
         if not instrument:
             return
-        self.logger.info("[%s] latest=%s", instrument_name, instrument.state.latest or {})
+
+        state = instrument.state
+        if state.latest:
+            self.logger.info("[%s] latest=%s", instrument_name, state.latest)
+            return
+
+        if state.last_error:
+            self.logger.error("[%s] no sample available yet; last_error=%s", instrument_name, state.last_error)
+            return
+
+        if state.last_sample_ts <= 0:
+            self.logger.warning("[%s] no sample available yet", instrument_name)
+            return
+
+        age_seconds = max(0.0, time.time() - state.last_sample_ts)
+        self.logger.error("[%s] latest sample is stale age_seconds=%.1f", instrument_name, age_seconds)
 
     def _transmit_one_instrument(self, instrument_name: str) -> None:
         """Transmit all outbox files for a single instrument."""
