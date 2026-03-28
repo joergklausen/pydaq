@@ -24,7 +24,7 @@ main:
     port: 8088
 
 transfer:
-  require_all_targets: false
+  require_all_targets: true # require successful transfer of all targets before emptying the outbox.
   scan_every_seconds: 600
   retries: 3
   backoff_seconds: 2
