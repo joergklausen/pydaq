@@ -267,8 +267,12 @@ class S3Target(TransferTarget):
         self.region: str = str(params.get("region") or "")
 
         # Credentials (file paths)
-        self.access_key_id: Optional[str] = _expand_secret(params.get("access_key_id"))
-        self.secret_access_key: Optional[str] = _expand_secret(params.get("secret_access_key"))
+        self.access_key_id: Optional[str] = _expand_secret(
+            params.get("access_key_id") or params.get("access_key")
+        )
+        self.secret_access_key: Optional[str] = _expand_secret(
+            params.get("secret_access_key") or params.get("secret_key")
+        )
 
         # TLS verify and addressing
         self.verify: Union[bool, str] = _coerce_verify(params.get("verify", True))
