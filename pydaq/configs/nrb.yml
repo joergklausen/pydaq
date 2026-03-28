@@ -5,7 +5,7 @@ station:
   timezone: UTC
 
 paths:
-  root: ~/pydaq/mkn
+  root: ~/Documents/nrb
   data: data
   outbox: outbox
   logs: logs
