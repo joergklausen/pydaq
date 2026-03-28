@@ -1,16 +1,19 @@
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
 from pathlib import Path
 import sys
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import datetime as dt
-
-import polars as pl
-import pytest
-
+import pydaq.instruments.instrument as instrument_mod
 from pydaq.instruments.fidas import FIDAS
+
 
 class DummyWriter:
     """Minimal in-memory writer used to isolate the FIDAS unit tests."""
@@ -107,12 +110,10 @@ def test_append_record_emits_median_aggregate_and_rollover_flushes_buffer(
     writer = fidas_driver.writer
     assert isinstance(writer, DummyWriter)
 
-    # First two raw samples land in the same 12:00 aggregation window.
     fidas_driver.append_record()
     fidas_driver.append_record()
     assert writer.appended == []
 
-    # Crossing into 12:01 emits the median row for the completed 12:00 window.
     fidas_driver.append_record()
     assert len(writer.appended) == 1
     row_1200 = writer.appended[0]
@@ -122,11 +123,9 @@ def test_append_record_emits_median_aggregate_and_rollover_flushes_buffer(
     assert fidas_driver.state.latest["60"] == pytest.approx(12.0)
     assert writer.finalize_calls == 1
 
-    # One more raw record goes into the 12:01 window but should not flush yet.
     fidas_driver.append_record()
     assert len(writer.appended) == 1
 
-    # Explicit rollover should flush the partial 12:01 window and stage the writer.
     fidas_driver.rollover()
     assert len(writer.appended) == 2
     row_1201 = writer.appended[1]
