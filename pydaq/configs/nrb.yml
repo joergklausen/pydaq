@@ -37,8 +37,10 @@ transfer:
         bucket: ch.meteoswiss.gawkenya
         prefix: nrb/incoming
         region: eu-central-1
-        access_key: ~/.secrets/s3_access_key
-        secret_key: ~/.secrets/s3_secret_key
+        # access_key: ~/.secrets/s3_access_key
+        # secret_key: ~/.secrets/s3_secret_key
+        access_key: gawkenya_native
+        secret_key: ~/.aws/minio-devt-secret-key
         verify: true
         addressing_style: path
     sftp:
