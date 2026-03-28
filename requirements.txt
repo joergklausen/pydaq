@@ -5,3 +5,4 @@ paramiko
 boto3
 pytest
 ruff
+polars

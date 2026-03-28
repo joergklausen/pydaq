@@ -476,6 +476,14 @@ def get_driver_class(
             "pydaq.instruments.thermo49i:Thermo49i",
             "pydaq.instruments.thermo49i:Thermo",
         ],
+        "fidas": [
+            "pydaq.instruments.fidas:FIDAS",
+            "pydaq.instruments.fidas:Fidas",
+        ],
+        "FIDAS": [
+            "pydaq.instruments.fidas:FIDAS",
+            "pydaq.instruments.fidas:Fidas",
+        ],
     }
 
     if aliases:

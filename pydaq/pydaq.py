@@ -280,6 +280,7 @@ class Orchestrator:
 
         driver_parameters = {
             "io": instrument_config.io,
+            "schedule": asdict(instrument_config.schedule),
             "init": instrument_config.init,
             "processing": instrument_config.processing,
             "output": asdict(instrument_config.output),
