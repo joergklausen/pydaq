@@ -97,15 +97,15 @@ def test_append_record_emits_median_aggregate_and_rollover_flushes_buffer(
         {},
         {"record_id": 6082, "checksum": "AC", "60": 20.0, "61": 5.0},
     ]
-    now_values = [
+    times = iter([
         _utc(2026, 3, 28, 12, 0, 5),
         _utc(2026, 3, 28, 12, 0, 40),
         _utc(2026, 3, 28, 12, 1, 0),
         _utc(2026, 3, 28, 12, 1, 10),
-    ]
-
+        _utc(2026, 3, 28, 12, 1, 59),
+    ])
+    monkeypatch.setattr(fidas_driver, "_now_utc", lambda: next(times))
     monkeypatch.setattr(fidas_driver, "get_record", lambda: records.pop(0))
-    monkeypatch.setattr(fidas_driver, "_now_utc", lambda: now_values.pop(0))
 
     writer = fidas_driver.writer
     assert isinstance(writer, DummyWriter)
