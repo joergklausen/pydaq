@@ -12,7 +12,8 @@ This test uses the same core transfer path as the orchestrator:
 
 The station config path is provided on the pytest command line via:
 
-    pytest ... --station-config /path/to/station.yml
+    . .venv/bin/activate
+    pytest -vv -rs -s tests/test_s3_integration.py --station-config ./pydaq/configs/nrb.yml
 """
 
 import sys
@@ -50,7 +51,7 @@ def _load_orchestrator_class():
         errors.append(f"from pydaq.pydaq import Orchestrator -> {exc!r}")
 
     try:
-        from pydaq import Orchestrator
+        from pydaq.pydaq import Orchestrator
 
         return Orchestrator
     except Exception as exc:
@@ -78,6 +79,72 @@ def orchestrator(monkeypatch: pytest.MonkeyPatch, station_config_path: Path):
         schedule.clear()
 
 
+def _get_paramiko_sftp_like_client(target):
+    """Best-effort access to an underlying Paramiko-like SFTP client.
+
+    Returns:
+        A client object supporting ``listdir_attr()``, ``remove()``, and ``rmdir()``,
+        or ``None`` if the target does not expose one.
+    """
+    candidate_attrs = (
+        "_client",
+        "client",
+        "_sftp",
+        "sftp",
+        "_sftp_client",
+        "sftp_client",
+    )
+
+    for attr in candidate_attrs:
+        client = getattr(target, attr, None)
+        if client is None:
+            continue
+        if all(hasattr(client, name) for name in ("listdir_attr", "remove", "rmdir")):
+            return client
+
+    return None
+
+
+def _remote_rmtree(target, remote_dir: str) -> None:
+    """Recursively delete a remote directory tree if possible.
+
+    Falls back quietly if the target does not expose a directory-capable client.
+    """
+    client = _get_paramiko_sftp_like_client(target)
+    if client is None:
+        return
+
+    def _walk(path: str) -> None:
+        try:
+            entries = client.listdir_attr(path)
+        except Exception:
+            return
+
+        for entry in entries:
+            child = f"{path.rstrip('/')}/{entry.filename}"
+            mode = getattr(entry, "st_mode", 0)
+            is_dir = bool(mode & 0o040000)
+
+            if is_dir:
+                _walk(child)
+                try:
+                    client.rmdir(child)
+                except Exception:
+                    pass
+            else:
+                try:
+                    client.remove(child)
+                except Exception:
+                    pass
+
+    _walk(remote_dir)
+
+    try:
+        client.rmdir(remote_dir)
+    except Exception:
+        pass
+
+
 def test_sftp_transmit_from_outbox_uses_same_transfer_machinery_as_orchestrator(
     orchestrator,
     station_config_path: Path,
@@ -90,19 +157,20 @@ def test_sftp_transmit_from_outbox_uses_same_transfer_machinery_as_orchestrator(
     if handler is None:
         pytest.skip("Transfer is disabled or no enabled transfer targets were built.")
 
-    sftp_targets = [target for target in handler.targets if getattr(target, "kind", "").lower() == "sftp"]
+    all_targets = list(handler.targets)
+    sftp_targets = [target for target in all_targets if getattr(target, "kind", "").lower() == "sftp"]
     if not sftp_targets:
         pytest.skip(f"No enabled SFTP target is configured in {station_config_path}.")
 
-    non_sftp_targets = [target for target in handler.targets if getattr(target, "kind", "").lower() != "sftp"]
-    if non_sftp_targets and handler.require_all_targets:
-        pytest.skip(
-            "Config mixes SFTP with other required targets. "
-            "Use an SFTP-only integration config for this test."
-        )
+    # Force this test to exercise only the SFTP targets, even if the station config
+    # mixes SFTP with S3 and/or requires all targets in production.
+    original_targets = handler.targets
+    original_require_all_targets = handler.require_all_targets
+    handler.targets = sftp_targets
+    handler.require_all_targets = False
 
     instrument_name = "__pytest_sftp__"
-    remote_path = f"_pytest_sftp/{cfg.station.id}"
+    remote_path = f"_pytest_sftp/{cfg.station.id}/{uuid.uuid4().hex}"
 
     outbox_dir = cfg.paths.outbox / instrument_name
     outbox_dir.mkdir(parents=True, exist_ok=True)
@@ -143,4 +211,43 @@ def test_sftp_transmit_from_outbox_uses_same_transfer_machinery_as_orchestrator(
             except Exception:
                 pass
 
+            # Remove the unique leaf directory and then the station test root if empty.
+            try:
+                target.delete(remote_path)
+            except Exception:
+                pass
+
+            try:
+                _remote_rmtree(target, remote_path)
+            except Exception:
+                pass
+
+            try:
+                target.delete(f"_pytest_sftp/{cfg.station.id}")
+            except Exception:
+                pass
+
+            try:
+                _remote_rmtree(target, f"_pytest_sftp/{cfg.station.id}")
+            except Exception:
+                pass
+
+            try:
+                target.delete("_pytest_sftp")
+            except Exception:
+                pass
+
+            try:
+                _remote_rmtree(target, "_pytest_sftp")
+            except Exception:
+                pass
+
         local_path.unlink(missing_ok=True)
+
+        try:
+            outbox_dir.rmdir()
+        except OSError:
+            pass
+
+        handler.targets = original_targets
+        handler.require_all_targets = original_require_all_targets
