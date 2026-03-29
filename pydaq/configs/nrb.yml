@@ -63,7 +63,7 @@ network_monitor:
 instruments:
   49c:
     enabled: false
-    driver: thermo
+    driver: Thermo49c
     io: 
       kind: serial
       device: /dev/ttyusb0 
@@ -81,7 +81,7 @@ instruments:
       print_every_seconds: 30
     output:
       format: csv_zip
-      remote_path: tei49c
+      remote_path: 49c
       remove_on_success: true
     init: {}
     processing: {}
@@ -107,7 +107,7 @@ instruments:
       print_every_seconds: 30
     output:
       format: csv_zip
-      remote_path: tei49i
+      remote_path: 49i
       remove_on_success: true
     init: {}
     processing: {}
