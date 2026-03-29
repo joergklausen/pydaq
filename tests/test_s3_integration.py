@@ -12,7 +12,8 @@ This test uses the same core transfer path as the orchestrator:
 
 The station config path is provided on the pytest command line via:
 
-    pytest ... --station-config /path/to/station.yml
+    . .venv/bin/activate
+    pytest -vv -rs -s tests/test_s3_integration.py --station-config ./pydaq/configs/nrb.yml
 """
 
 import sys
@@ -37,12 +38,14 @@ def _load_orchestrator_class():
 
     try:
         from pydaq.pydaq import Orchestrator
+
         return Orchestrator
     except Exception as exc:
         errors.append(f"from pydaq.pydaq import Orchestrator -> {exc!r}")
 
     try:
-        from pydaq import Orchestrator
+        from pydaq.pydaq import Orchestrator
+
         return Orchestrator
     except Exception as exc:
         errors.append(f"from pydaq import Orchestrator -> {exc!r}")
@@ -81,19 +84,20 @@ def test_s3_transmit_from_outbox_uses_same_transfer_machinery_as_orchestrator(
     if handler is None:
         pytest.skip("Transfer is disabled or no enabled transfer targets were built.")
 
-    s3_targets = [target for target in handler.targets if getattr(target, "kind", "").lower() == "s3"]
+    all_targets = list(handler.targets)
+    s3_targets = [target for target in all_targets if getattr(target, "kind", "").lower() == "s3"]
     if not s3_targets:
         pytest.skip(f"No enabled S3 target is configured in {station_config_path}.")
 
-    non_s3_targets = [target for target in handler.targets if getattr(target, "kind", "").lower() != "s3"]
-    if non_s3_targets and handler.require_all_targets:
-        pytest.skip(
-            "Config mixes S3 with other required targets. "
-            "Use an S3-only integration config for this test."
-        )
+    # Force this test to exercise only the S3 targets, even if the station config
+    # mixes S3 with SFTP and/or requires all targets in production.
+    original_targets = handler.targets
+    original_require_all_targets = handler.require_all_targets
+    handler.targets = s3_targets
+    handler.require_all_targets = False
 
     instrument_name = "__pytest_s3__"
-    remote_path = f"_pytest_s3/{cfg.station.id}"
+    remote_path = f"_pytest_s3/{cfg.station.id}/{uuid.uuid4().hex}"
 
     outbox_dir = cfg.paths.outbox / instrument_name
     outbox_dir.mkdir(parents=True, exist_ok=True)
@@ -135,3 +139,11 @@ def test_s3_transmit_from_outbox_uses_same_transfer_machinery_as_orchestrator(
                 pass
 
         local_path.unlink(missing_ok=True)
+
+        try:
+            outbox_dir.rmdir()
+        except OSError:
+            pass
+
+        handler.targets = original_targets
+        handler.require_all_targets = original_require_all_targets
