@@ -466,72 +466,158 @@ class Instrument:
         if self.writer:
             self.writer.stage_current()
 
-def get_driver_class(
-    driver: str | type["Instrument"],
-    *,
-    aliases: Mapping[str, str | list[str]] | None = None,
-) -> type["Instrument"]:
+# def get_driver_class(
+#     driver: str | type["Instrument"],
+#     *,
+#     aliases: Mapping[str, str | list[str]] | None = None,
+# ) -> type["Instrument"]:
+#     """
+#     Resolve a driver identifier to an Instrument subclass.
+
+#     Accepts:
+#       - an Instrument subclass (returned unchanged)
+#       - "package.module:ClassName"  (recommended)
+#       - "package.module.ClassName"
+#       - legacy short names like "49i" / "thermo49i" via an alias map
+
+#     The import happens only when this function is called (helps avoid circular imports).
+#     """
+#     # Already a class?
+#     if inspect.isclass(driver) and issubclass(driver, Instrument):
+#         return driver
+
+#     if not isinstance(driver, str) or not driver.strip():
+#         raise TypeError(f"driver must be a non-empty str or Instrument subclass, got {type(driver)}")
+
+#     name = driver.strip()
+
+#     # Default legacy aliases (try multiple candidates because names may differ across refactors)
+#     default_aliases: dict[str, str | list[str]] = {
+#         "49i": [
+#             "pydaq.instruments.thermo:Thermo49i",
+#             "pydaq.instruments.thermo:Thermo",
+#             "pydaq.instruments.thermo49i:Thermo49i",
+#             "pydaq.instruments.thermo49i:Thermo",
+#         ],
+#         "thermo49i": [
+#             "pydaq.instruments.thermo:Thermo49i",
+#             "pydaq.instruments.thermo:Thermo",
+#             "pydaq.instruments.thermo49i:Thermo49i",
+#             "pydaq.instruments.thermo49i:Thermo",
+#         ],
+#     }
+
+#     if aliases:
+#         default_aliases.update(dict(aliases))
+
+#     target = default_aliases.get(name, name)
+#     candidates = target if isinstance(target, list) else [target]
+
+#     last_err: Exception | None = None
+
+#     for cand in candidates:
+#         try:
+#             if ":" in cand:
+#                 mod_name, attr = cand.split(":", 1)
+#             else:
+#                 mod_name, attr = cand.rsplit(".", 1)
+
+#             mod = importlib.import_module(mod_name)
+#             cls: Any = getattr(mod, attr)
+
+#             if not inspect.isclass(cls) or not issubclass(cls, Instrument):
+#                 raise TypeError(f"{cand} resolved to {cls!r}, not an Instrument subclass")
+
+#             return cls
+
+#         except Exception as e:
+#             last_err = e
+
+#     raise ImportError(f"Could not resolve driver '{driver}'. Last error: {last_err}") from last_err
+
+def get_driver_class(driver: str) -> type["Instrument"]:
+    """Resolve a configured driver string to an Instrument subclass.
+
+    Supports:
+    - fully qualified class paths, e.g. ``pydaq.instruments.fidas.FIDAS``
+    - short aliases, e.g. ``fidas`` or ``thermo49i``
     """
-    Resolve a driver identifier to an Instrument subclass.
 
-    Accepts:
-      - an Instrument subclass (returned unchanged)
-      - "package.module:ClassName"  (recommended)
-      - "package.module.ClassName"
-      - legacy short names like "49i" / "thermo49i" via an alias map
+    import importlib
+    import inspect
+    import logging
 
-    The import happens only when this function is called (helps avoid circular imports).
-    """
-    # Already a class?
-    if inspect.isclass(driver) and issubclass(driver, Instrument):
-        return driver
+    logger = logging.getLogger("pydaq.instrument.resolve")
 
-    if not isinstance(driver, str) or not driver.strip():
-        raise TypeError(f"driver must be a non-empty str or Instrument subclass, got {type(driver)}")
+    if not driver or not str(driver).strip():
+        raise ImportError("Driver is empty.")
 
-    name = driver.strip()
+    driver = str(driver).strip()
 
-    # Default legacy aliases (try multiple candidates because names may differ across refactors)
-    default_aliases: dict[str, str | list[str]] = {
-        "49i": [
-            "pydaq.instruments.thermo:Thermo49i",
-            "pydaq.instruments.thermo:Thermo",
-            "pydaq.instruments.thermo49i:Thermo49i",
-            "pydaq.instruments.thermo49i:Thermo",
-        ],
-        "thermo49i": [
-            "pydaq.instruments.thermo:Thermo49i",
-            "pydaq.instruments.thermo:Thermo",
-            "pydaq.instruments.thermo49i:Thermo49i",
-            "pydaq.instruments.thermo49i:Thermo",
-        ],
+    aliases = {
+        "49i": "pydaq.instruments.thermo.Thermo49i",
+        "thermo49i": "pydaq.instruments.thermo.Thermo49i",
+        "49c": "pydaq.instruments.thermo.Thermo49C",
+        "thermo49c": "pydaq.instruments.thermo.Thermo49C",
+        "49cps": "pydaq.instruments.thermo.Thermo49CPS",
+        "thermo49cps": "pydaq.instruments.thermo.Thermo49CPS",
+        "fidas": "pydaq.instruments.fidas.FIDAS",
     }
 
-    if aliases:
-        default_aliases.update(dict(aliases))
+    def camelize(text: str) -> str:
+        return "".join(part.capitalize() for part in text.replace("-", "_").split("_") if part)
 
-    target = default_aliases.get(name, name)
-    candidates = target if isinstance(target, list) else [target]
+    def iter_candidates(name: str) -> list[str]:
+        candidates: list[str] = []
+        seen: set[str] = set()
+
+        def add(value: str | None) -> None:
+            if value and value not in seen:
+                seen.add(value)
+                candidates.append(value)
+
+        lname = name.lower()
+
+        add(aliases.get(lname))
+
+        # fully qualified module.class given directly
+        if "." in name:
+            add(name)
+
+        # heuristic fallbacks for short names
+        add(f"pydaq.instruments.{lname}.{camelize(name)}")
+        add(f"pydaq.instruments.{lname}.{name.upper()}")
+        add(f"pydaq.instruments.{lname}.{name}")
+
+        return candidates
 
     last_err: Exception | None = None
+    candidates = iter_candidates(driver)
+
+    logger.debug("Resolving driver %r with candidates=%s", driver, candidates)
 
     for cand in candidates:
         try:
-            if ":" in cand:
-                mod_name, attr = cand.split(":", 1)
-            else:
-                mod_name, attr = cand.rsplit(".", 1)
+            if "." not in cand:
+                raise ImportError(f"Invalid driver candidate without class name: {cand!r}")
 
-            mod = importlib.import_module(mod_name)
-            cls: Any = getattr(mod, attr)
+            mod_name, attr = cand.rsplit(".", 1)
+            module = importlib.import_module(mod_name)
+            cls = getattr(module, attr)
 
-            if not inspect.isclass(cls) or not issubclass(cls, Instrument):
-                raise TypeError(f"{cand} resolved to {cls!r}, not an Instrument subclass")
+            if not inspect.isclass(cls):
+                raise TypeError(f"{cand!r} does not resolve to a class")
 
+            if not issubclass(cls, Instrument):
+                raise TypeError(f"{cand!r} is not a subclass of Instrument")
+
+            logger.info("Resolved driver %r -> %s.%s", driver, mod_name, attr)
             return cls
 
-        except Exception as e:
-            last_err = e
+        except Exception as exc:
+            last_err = exc
+            logger.debug("Driver candidate failed: %s (%s)", cand, exc)
 
-    raise ImportError(f"Could not resolve driver '{driver}'. Last error: {last_err}") from last_err
-
+    raise ImportError(
+        f"Could not resolve driver {driver!r}. Tried: {candidates}. Last error: {last_err}"
+    ) from last_err
