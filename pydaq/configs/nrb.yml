@@ -13,7 +13,7 @@ paths:
 logging:
   file: pydaq.log
   level_console: info
-  level_file: error
+  level_file: warning
 
 main:
   loop_sleep_seconds: 1
