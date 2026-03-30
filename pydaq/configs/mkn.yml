@@ -24,7 +24,7 @@ main:
     port: 8088
 
 transfer:
-  require_all_targets: false
+  require_all_targets: true # require successful transfer of all targets before emptying the outbox.
   scan_every_seconds: 600
   retries: 3
   backoff_seconds: 2
@@ -37,18 +37,20 @@ transfer:
         bucket: ch.meteoswiss.gawkenya
         prefix: mkn
         region: eu-central-1
-        access_key_id: ~/.secrets/s3_access_key_id
-        secret_access_key: ~/.secrets/s3_secret_access_key
+        access_key: ~/.secrets/s3_access_key
+        secret_key: ~/.secrets/s3_secret_key
         verify: true
         addressing_style: path
     sftp:
       enabled: true
       parameters:
-        host: "sftp.example"
-        user: "user"
+        host: sftp.meteoswiss.ch
+        user: gaw_mkn
         remote_base: "."
-        key: "~/.ssh/id_rsa"
-        port: 22
+        key: ~/.ssh/private-open-ssh-4096-mkn.ppk
+        proxy:
+            socks5:             # proxy url (leave empty if no proxy is used)
+            port: 1080
 
 network_monitor:
   enabled: true
@@ -83,8 +85,11 @@ instruments:
     processing: {}
 
   49i:
-    enabled: false
-    driver: thermo
+    mac: 00-06-3B-20-36-A1
+    id: 49
+    serial_number: 49I-B1NAA-12103910681
+    enabled: true
+    driver: Thermo49i
     io: 
       kind: socket 
       host: 192.168.3.190
@@ -100,7 +105,62 @@ instruments:
       print_every_seconds: 30
     output:
       format: csv_zip
-      remote_path: tei49c
+      remote_path: tei49i
       remove_on_success: true
     init: {}
     processing: {}
+
+  fidas:
+    mac: 00-18-7D-2D-CA-84
+    serial_number: 6082
+    enabled: true
+    driver: FIDAS
+    io:
+      kind: udp
+      host: 0.0.0.0 #192.168.3.182
+      port: 56790
+      buffer_size: 8192
+      timeout: 0.5
+      sleep: 0.5
+    schedule:  
+      sample_every_seconds: 5             # How often should data be read from instrument?
+      aggregation_period_minutes: 1       # What aggregate of data should be stored?
+      rollover: hourly
+      rollover_at: ":00"
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 15
+      print_every_seconds: 30
+    output:
+      format: csv_zip
+      remote_path: fidas
+      remove_on_success: true
+    init: {}
+    processing: {}
+
+ae33:
+  enabled: true
+  driver: pydaq.instruments.magee.AE33
+  id: 169
+  serial_number: AE33-S10-01394
+  io:
+    kind: socket
+    host: 192.168.3.137
+    port: 8002
+    timeout_seconds: 0.5
+    sleep_seconds: 0.5
+  schedule:
+    sample_every_seconds: 60
+    rollover: hourly
+    rollover_at: ":00"
+    transmit_every_seconds: 3600
+    transmit_delay_seconds: 15
+    print_every_seconds: 30
+  output:
+    format: csv_zip
+    remote_path: ae33
+    remove_on_success: true
+  init:
+    get_config:
+      - HELLO
+    set_datetime: false
+  processing: {}    

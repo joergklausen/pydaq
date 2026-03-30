@@ -138,3 +138,30 @@ instruments:
       remove_on_success: true
     init: {}
     processing: {}
+
+  ae31:
+    enabled: true
+    driver: pydaq.instruments.magee.AE31
+    id: "944:0810"
+    serial_number: "944:0810"
+    io:
+      kind: serial
+      device: /dev/ttyUSB2
+      baudrate: 9600
+      bytesize: 8
+      parity: N
+      stopbits: 1
+      timeout_seconds: 270
+    schedule:
+      sample_every_seconds: 300
+      rollover: hourly
+      rollover_at: ":00"
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 15
+      print_every_seconds: 300
+    output:
+      format: csv_zip
+      remote_path: ae31
+      remove_on_success: true
+    init: {}
+    processing: {}
