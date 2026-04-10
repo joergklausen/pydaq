@@ -33,5 +33,7 @@ def get_driver_class(driver: str):
         "thermo49cps": "pydaq.instruments.thermo:Thermo49CPS",
         "fidas": "pydaq.instruments.fidas:FIDAS",
         "FIDAS": "pydaq.instruments.fidas:FIDAS",
+        "hmp60": "pydaq.instruments.vaisala.HMPASCII",
+        "hmp110": "pydaq.instruments.vaisala.HMPASCII",
     }
     return _get_driver_class(driver, aliases=aliases)
