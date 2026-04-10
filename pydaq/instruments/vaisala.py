@@ -58,7 +58,7 @@ class HMPASCII(Instrument):
         instruments:
           hmp60:
             enabled: true
-            driver: Vaisala
+            driver: HMPASCII
             id: 5
             serial_number: T4744529-U0000072-R00A0A3B0
             io:

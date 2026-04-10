@@ -63,7 +63,7 @@ network_monitor:
 instruments:
   hmp60:
     enabled: true
-    driver: HMPASCII
+    driver: pydaq.instruments.vaisala.HMPASCII
     id: 5
     serial_number: T4744529-U0000072-R00A0A3B0
     io:

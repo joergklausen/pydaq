@@ -35,5 +35,6 @@ def get_driver_class(driver: str):
         "FIDAS": "pydaq.instruments.fidas:FIDAS",
         "hmp60": "pydaq.instruments.vaisala.HMPASCII",
         "hmp110": "pydaq.instruments.vaisala.HMPASCII",
+        "hmpascii": "pydaq.instruments.vaisala.HMPASCII",
     }
     return _get_driver_class(driver, aliases=aliases)
