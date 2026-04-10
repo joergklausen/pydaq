@@ -44,7 +44,7 @@ transfer:
         verify: true
         addressing_style: path
     sftp:
-      enabled: true
+      enabled: false
       parameters:
         host: sftp.meteoswiss.ch
         user: gaw_kenya
