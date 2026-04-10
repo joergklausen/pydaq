@@ -1,6 +1,6 @@
 station:
   wsi: 0-20008-0-test
-  id: test
+  id: tst
   name: Test
   timezone: UTC
 
