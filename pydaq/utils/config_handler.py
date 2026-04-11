@@ -5,7 +5,7 @@ The platform uses YAML for station configuration because it is:
 - supports comments
 - naturally represents nested mappings for instrument configuration
 
-The config content is conventionally all lower-case, with a few exceptions. 
+The config content is conventionally all lower-case, with a few exceptions.
 Secrets should be stored in secret files in special folders (e.g. ``~/.ssh`` or ``~/.secrets``).
 The YAML config can reference these files, and the platform will read their contents at runtime.
 """
@@ -21,11 +21,12 @@ import yaml
 
 class ConfigError(ValueError):
     """Raised when the station configuration cannot be parsed or validated."""
-    pass
+
 
 
 def _expand_user_path(text: str) -> Path:
     return Path(text).expanduser()
+
 
 
 def _require_mapping_value(mapping: Dict[str, Any], key: str, context: str) -> Any:
@@ -37,6 +38,7 @@ def _require_mapping_value(mapping: Dict[str, Any], key: str, context: str) -> A
 @dataclass(frozen=True)
 class StationConfig:
     """Station identity and timezone configuration."""
+
     wsi: str
     id: str
     name: str = ""
@@ -46,6 +48,7 @@ class StationConfig:
 @dataclass(frozen=True)
 class PathsConfig:
     """Filesystem layout for one station instance."""
+
     root: Path
     data: Path
     outbox: Path
@@ -55,6 +58,7 @@ class PathsConfig:
 @dataclass(frozen=True)
 class LoggingConfig:
     """Logging configuration for console and file outputs."""
+
     level_console: str = "info"
     level_file: str = "info"
     file: str = "pydaq.log"
@@ -63,6 +67,7 @@ class LoggingConfig:
 @dataclass(frozen=True)
 class DashboardConfig:
     """Tiny HTTP dashboard config."""
+
     enabled: bool = True
     host: str = "0.0.0.0"
     port: int = 8088
@@ -71,6 +76,7 @@ class DashboardConfig:
 @dataclass(frozen=True)
 class MainConfig:
     """Main-loop parameters for the schedule-driven orchestrator."""
+
     loop_sleep_seconds: float = 1.0
     config_reload_seconds: int = 60
     dashboard: DashboardConfig = DashboardConfig()
@@ -79,6 +85,7 @@ class MainConfig:
 @dataclass(frozen=True)
 class TransferTargetConfig:
     """Configuration for one transfer target (e.g. s3, sftp)."""
+
     kind: str
     enabled: bool
     parameters: Dict[str, Any]
@@ -87,6 +94,7 @@ class TransferTargetConfig:
 @dataclass(frozen=True)
 class TransferConfig:
     """Transfer manager configuration."""
+
     enabled: bool
     require_all_targets: bool = False
     scan_every_seconds: int = 300
@@ -99,6 +107,7 @@ class TransferConfig:
 @dataclass(frozen=True)
 class InstrumentScheduleConfig:
     """Scheduling settings for an instrument."""
+
     sample_every_seconds: int
     rollover: str = "hourly"
     rollover_at: str = ":00"
@@ -110,6 +119,7 @@ class InstrumentScheduleConfig:
 @dataclass(frozen=True)
 class InstrumentOutputConfig:
     """How instrument data are staged and transmitted."""
+
     format: str = "csv_zip"
     remote_path: str = ""
     remove_on_success: bool = True
@@ -118,6 +128,7 @@ class InstrumentOutputConfig:
 @dataclass(frozen=True)
 class InstrumentConfig:
     """Configuration for one instrument entry."""
+
     name: str
     enabled: bool
     driver: str
@@ -125,7 +136,7 @@ class InstrumentConfig:
     schedule: InstrumentScheduleConfig
     output: InstrumentOutputConfig
     init: Dict[str, Any]
-    processing: Dict[str, Any]    
+    processing: Dict[str, Any]
     id: int | None = None
     serial_number: str | None = None
 
@@ -133,6 +144,7 @@ class InstrumentConfig:
 @dataclass(frozen=True)
 class ApplicationConfig:
     """Parsed station configuration used by the orchestrator."""
+
     station: StationConfig
     paths: PathsConfig
     logging: LoggingConfig
@@ -140,6 +152,7 @@ class ApplicationConfig:
     transfer: TransferConfig
     io: Dict[str, Any]
     instruments: Dict[str, InstrumentConfig]
+
 
 
 def _parse_station_config(raw: Dict[str, Any]) -> StationConfig:
@@ -154,6 +167,7 @@ def _parse_station_config(raw: Dict[str, Any]) -> StationConfig:
     )
 
 
+
 def _parse_paths_config(raw: Dict[str, Any]) -> PathsConfig:
     root = _expand_user_path(str(_require_mapping_value(raw, "root", "paths"))).resolve()
     data = root / str(raw.get("data", "data"))
@@ -162,12 +176,14 @@ def _parse_paths_config(raw: Dict[str, Any]) -> PathsConfig:
     return PathsConfig(root=root, data=data, outbox=outbox, logs=logs)
 
 
+
 def _parse_logging_config(raw: Dict[str, Any]) -> LoggingConfig:
     return LoggingConfig(
         level_console=str(raw.get("level_console", "info")).lower(),
         level_file=str(raw.get("level_file", "info")).lower(),
         file=str(raw.get("file", "pydaq.log")),
     )
+
 
 
 def _parse_main_config(raw: Dict[str, Any]) -> MainConfig:
@@ -184,43 +200,9 @@ def _parse_main_config(raw: Dict[str, Any]) -> MainConfig:
     )
 
 
+
 def _parse_transfer_config(raw: Dict[str, Any]) -> TransferConfig:
-    """Parse transfer configuration.
-
-    Supports two YAML shapes for ``transfer.targets``:
-
-    **Mapping style (recommended for readability)**
-
-    .. code-block:: yaml
-
-        transfer:
-          targets:
-            s3:
-              enabled: true
-              parameters: {...}
-            sftp:
-              enabled: true
-              parameters: {...}
-
-    **List style (allows multiple targets of the same kind)**
-
-    .. code-block:: yaml
-
-        transfer:
-          targets:
-            - kind: s3
-              enabled: true
-              parameters: {...}
-
-    Args:
-        raw: Parsed ``transfer`` mapping.
-
-    Returns:
-        TransferConfig instance.
-
-    Raises:
-        ConfigError: If the structure is invalid.
-    """
+    """Parse transfer configuration."""
     enabled = bool(raw.get("enabled", False))
     targets_raw = raw.get("targets", None)
 
@@ -229,7 +211,6 @@ def _parse_transfer_config(raw: Dict[str, Any]) -> TransferConfig:
     if targets_raw is None:
         targets_raw = {}
 
-    # Style 1: list of {kind, enabled, parameters}
     if isinstance(targets_raw, list):
         for idx, entry in enumerate(targets_raw):
             if not isinstance(entry, dict):
@@ -242,8 +223,6 @@ def _parse_transfer_config(raw: Dict[str, Any]) -> TransferConfig:
                     parameters=dict(entry.get("parameters", {}) or {}),
                 )
             )
-
-    # Style 2: mapping of kind -> {enabled, parameters}
     elif isinstance(targets_raw, dict):
         for kind_key, entry in targets_raw.items():
             if not isinstance(entry, dict):
@@ -269,6 +248,8 @@ def _parse_transfer_config(raw: Dict[str, Any]) -> TransferConfig:
         targets=targets,
     )
 
+
+
 def _parse_instrument_schedule_config(raw: Dict[str, Any]) -> InstrumentScheduleConfig:
     return InstrumentScheduleConfig(
         sample_every_seconds=int(_require_mapping_value(raw, "sample_every_seconds", "instruments.<name>.schedule")),
@@ -280,12 +261,14 @@ def _parse_instrument_schedule_config(raw: Dict[str, Any]) -> InstrumentSchedule
     )
 
 
+
 def _parse_instrument_output_config(raw: Dict[str, Any]) -> InstrumentOutputConfig:
     return InstrumentOutputConfig(
         format=str(raw.get("format", "csv_zip")).lower(),
         remote_path=str(raw.get("remote_path", "")),
         remove_on_success=bool(raw.get("remove_on_success", True)),
     )
+
 
 
 def load_config(config_path: Path) -> ApplicationConfig:
@@ -326,17 +309,23 @@ def load_config(config_path: Path) -> ApplicationConfig:
         init_mapping = dict(instrument_raw.get("init", {}) or {})
         processing_mapping = dict(instrument_raw.get("processing", {}) or {})
 
+        raw_id = instrument_raw.get("id")
+        instrument_id = None if raw_id is None or raw_id == "" else int(raw_id)
+
+        raw_serial_number = instrument_raw.get("serial_number")
+        serial_number = None if raw_serial_number is None or raw_serial_number == "" else str(raw_serial_number)
+
         instruments[str(instrument_name).lower()] = InstrumentConfig(
             name=str(instrument_name).lower(),
             enabled=enabled,
             driver=driver,
-            id=int(instrument_raw["id"]) if "id" in instrument_raw and instrument_raw["id"] is not None else None,
-            serial_number=str(instrument_raw["serial_number"]) if "serial_number" in instrument_raw and instrument_raw["serial_number"] is not None else None,
             io=io_mapping,
             schedule=schedule,
             output=output,
             init=init_mapping,
             processing=processing_mapping,
+            id=instrument_id,
+            serial_number=serial_number,
         )
 
     return ApplicationConfig(

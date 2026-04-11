@@ -7,7 +7,10 @@ import time
 from datetime import datetime, timezone
 from typing import Any, cast
 
-import serial
+try:
+    import serial  # type: ignore[import-not-found]
+except ModuleNotFoundError:
+    serial = None  # type: ignore[assignment]
 
 from pydaq.instruments.instrument import Instrument
 
@@ -47,7 +50,7 @@ class HMPASCII(Instrument):
 
     HEADERS = ["dtm", "t", "rh", "td"]
 
-    _serial_by_port: dict[str, serial.Serial] = {}
+    _serial_by_port: dict[str, Any] = {}
     _serial_lock_by_port: dict[str, threading.Lock] = {}
     _socket_lock_by_endpoint: dict[str, threading.Lock] = {}
 
@@ -230,7 +233,7 @@ class HMPASCII(Instrument):
                         return response
                 return ""
 
-    def _serial_send_and_read(self, ser: serial.Serial, command: str) -> str:
+    def _serial_send_and_read(self, ser: Any, command: str) -> str:
         ser.reset_input_buffer()
         ser.reset_output_buffer()
         ser.write((command + "\r").encode("ascii", errors="ignore"))
@@ -326,6 +329,12 @@ class HMPASCII(Instrument):
             )
 
     def _ensure_shared_serial(self, port: str, io_cfg: dict[str, Any]) -> None:
+        if serial is None:
+            raise RuntimeError(
+                f"[{self.name}] pyserial is not installed, but io.kind='serial' was configured. "
+                "Install 'pyserial' or switch this instrument to io.kind='socket'."
+            )
+
         if port in self._serial_by_port:
             return
 
