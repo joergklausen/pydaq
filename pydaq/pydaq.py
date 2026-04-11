@@ -271,7 +271,14 @@ class Orchestrator:
     def _create_instrument_instance(self, instrument_config: InstrumentConfig) -> Instrument:
         """Instantiate one instrument driver from its config."""
         assert self.application_config is not None
-        instrument_class = get_driver_class(instrument_config.driver)
+
+        try:
+            instrument_class = get_driver_class(instrument_config.driver)
+        except Exception as exc:
+            raise ImportError(
+                f"[{instrument_config.name}] failed to load driver "
+                f"{instrument_config.driver!r}: {exc}"
+            ) from exc
 
         data_directory = self.application_config.paths.data / instrument_config.name
         outbox_directory = self.application_config.paths.outbox / instrument_config.name
@@ -279,12 +286,8 @@ class Orchestrator:
         data_directory.mkdir(parents=True, exist_ok=True)
         outbox_directory.mkdir(parents=True, exist_ok=True)
 
-        driver_parameters = {
-            "io": instrument_config.io,
-            "init": instrument_config.init,
-            "processing": instrument_config.processing,
-            "output": asdict(instrument_config.output),
-        }
+        # Pass the full validated instrument config so fields like id and serial_number survive.
+        driver_parameters = asdict(instrument_config)
 
         headers = getattr(instrument_class, "HEADERS", None)
         instrument = instrument_class(

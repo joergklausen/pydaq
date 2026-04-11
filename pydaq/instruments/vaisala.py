@@ -105,6 +105,10 @@ class HMPASCII(Instrument):
 
     def get_record(self) -> dict[str, Any]:
         """Return one parsed measurement record for the pydaq base class."""
+        if not getattr(self, "_initialized", False):
+            self.logger.warning("[%s] HMPASCII not initialized; skipping read", self.name)
+            return {}
+
         if self.cooldown_until > time.time():
             return {}
 
@@ -129,9 +133,6 @@ class HMPASCII(Instrument):
             self._note_failure(str(exc))
             self.logger.error("[%s] get_record failed: %s", self.name, exc, exc_info=True)
             return {}
-
-    # Backward-compatible alias during transition.
-    collect_record = get_record
 
     def _params(self) -> dict[str, Any]:
         """Return the orchestrator-supplied driver parameters."""
