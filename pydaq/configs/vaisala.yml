@@ -24,7 +24,7 @@ main:
     port: 8088
 
 transfer:
-  require_all_targets: true # require successful transfer of all targets before emptying the outbox.
+  require_all_targets: true
   scan_every_seconds: 600
   retries: 3
   backoff_seconds: 2
@@ -37,8 +37,6 @@ transfer:
         bucket: ch.meteoswiss.gawkenya
         prefix: nrb/incoming
         region: eu-central-1
-        # access_key: ~/.secrets/s3_access_key
-        # secret_key: ~/.secrets/s3_secret_key
         access_key: gawkenya_native
         secret_key: ~/.aws/minio-devt-secret-key
         verify: true
@@ -48,11 +46,11 @@ transfer:
       parameters:
         host: sftp.meteoswiss.ch
         user: gaw_kenya
-        remote_base: "./test"
+        remote_base: ./test
         key: ~/.ssh/private-open-ssh-4096-mkn.ppk
         proxy:
-            socks5:             # proxy url (leave empty if no proxy is used)
-            port: 1080
+          socks5:
+          port: 1080
 
 network_monitor:
   enabled: true
@@ -63,7 +61,7 @@ network_monitor:
 instruments:
   hmp60:
     enabled: true
-    driver: pydaq.instruments.vaisala.HMPASCII
+    driver: hmpascii
     id: 5
     serial_number: T4744529-U0000072-R00A0A3B0
     io:
@@ -87,101 +85,4 @@ instruments:
       remove_on_success: true
     init:
       command_sequence:
-        # - "SEND"
         - "SEND {id}"
-        # - "OPEN {id}"
-        # - "SEND"
-        # - "CLOSE"
-
-  # hmp110_inlet:
-  #   enabled: true
-  #   driver: Vaisala
-  #   id: 1
-  #   serial_number: U2110079
-  #   io:
-  #     kind: serial
-  #     port: /dev/ttyUSB1
-  #     baudrate: 19200
-  #     bytesize: 8
-  #     parity: N
-  #     stopbits: 1
-  #     timeout: 1.0
-  #     write_timeout: 2.0
-  #     sleep: 0.1
-  #   schedule:
-  #     sample_every_seconds: 60
-  #     aggregation_period_minutes: 60
-  #     rollover: hourly
-  #     rollover_at: ":00"
-  #     transmit_every_seconds: 3600
-  #     transmit_delay_seconds: 15
-  #     print_every_seconds: 300
-  #   output:
-  #     format: csv_zip
-  #     remote_path: hmp110-inlet
-  #     remove_on_success: true
-  #   init:
-  #     command_sequence:
-  #       - "SEND {id}"
-
-  # hmp110_ae31:
-  #   enabled: true
-  #   driver: Vaisala
-  #   id: 2
-  #   serial_number: M4730288
-  #   io:
-  #     kind: serial
-  #     port: /dev/ttyUSB1
-  #     baudrate: 19200
-  #     bytesize: 8
-  #     parity: N
-  #     stopbits: 1
-  #     timeout: 1.0
-  #     write_timeout: 2.0
-  #     sleep: 0.1
-  #   schedule:
-  #     sample_every_seconds: 60
-  #     aggregation_period_minutes: 60
-  #     rollover: hourly
-  #     rollover_at: ":00"
-  #     transmit_every_seconds: 3600
-  #     transmit_delay_seconds: 15
-  #     print_every_seconds: 300
-  #   output:
-  #     format: csv_zip
-  #     remote_path: hmp110-ae31
-  #     remove_on_success: true
-  #   init:
-  #     command_sequence:
-  #       - "SEND {id}"
-
-  # hmp110_lab:
-  #   enabled: true
-  #   driver: Vaisala
-  #   id: 3
-  #   serial_number: U2110085
-  #   io:
-  #     kind: serial
-  #     port: /dev/ttyUSB1
-  #     baudrate: 19200
-  #     bytesize: 8
-  #     parity: N
-  #     stopbits: 1
-  #     timeout: 1.0
-  #     write_timeout: 2.0
-  #     sleep: 0.1
-  #   schedule:
-  #     sample_every_seconds: 60
-  #     aggregation_period_minutes: 60
-  #     rollover: hourly
-  #     rollover_at: ":00"
-  #     transmit_every_seconds: 3600
-  #     transmit_delay_seconds: 15
-  #     print_every_seconds: 300
-  #   output:
-  #     format: csv_zip
-  #     remote_path: hmp110-lab
-  #     remove_on_success: true
-  #   init:
-  #     command_sequence:
-  #       - "SEND {id}"

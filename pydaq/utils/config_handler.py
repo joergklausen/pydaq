@@ -125,7 +125,9 @@ class InstrumentConfig:
     schedule: InstrumentScheduleConfig
     output: InstrumentOutputConfig
     init: Dict[str, Any]
-    processing: Dict[str, Any]
+    processing: Dict[str, Any]    
+    id: int | None = None
+    serial_number: str | None = None
 
 
 @dataclass(frozen=True)
@@ -328,6 +330,8 @@ def load_config(config_path: Path) -> ApplicationConfig:
             name=str(instrument_name).lower(),
             enabled=enabled,
             driver=driver,
+            id=int(instrument_raw["id"]) if "id" in instrument_raw and instrument_raw["id"] is not None else None,
+            serial_number=str(instrument_raw["serial_number"]) if "serial_number" in instrument_raw and instrument_raw["serial_number"] is not None else None,
             io=io_mapping,
             schedule=schedule,
             output=output,
