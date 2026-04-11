@@ -6,3 +6,4 @@ boto3
 pytest
 ruff
 polars
+pyserial
