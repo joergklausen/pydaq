@@ -56,25 +56,30 @@ class HMPASCII(Instrument):
 
     def initialize(self) -> None:
         """Read and validate orchestrator-supplied parameters."""
+        self._initialized = False
+        self.fail_count = 0
+        self.cooldown_until = 0.0
+        self.max_fail_before_cooldown = 5
+        self.cooldown_seconds = 120.0
+
         params = self._params()
         io_cfg = self._require_dict(params, "io")
         init_cfg = self._optional_dict(params, "init")
 
-        self.sensor_id: int = self._require_sensor_id(params)
-        self.io_kind: str = self._require_str(io_cfg, "kind").lower()
-        self.io_sleep: float = float(io_cfg.get("sleep", 0.1))
-        self.timeout: float = float(io_cfg.get("timeout", 2.0))
-        self.idle_timeout: float = float(io_cfg.get("idle_timeout", min(0.25, self.timeout)))
-        self.command_sequence: list[str] = self._resolve_command_sequence(init_cfg)
+        self.max_fail_before_cooldown = int(init_cfg.get("max_fail_before_cooldown", 5))
+        self.cooldown_seconds = float(init_cfg.get("cooldown_seconds", 120.0))
 
-        self.max_fail_before_cooldown: int = int(init_cfg.get("max_fail_before_cooldown", 5))
-        self.cooldown_seconds: float = float(init_cfg.get("cooldown_seconds", 120.0))
-        self.fail_count: int = 0
-        self.cooldown_until: float = 0.0
+        self.sensor_id = self._require_sensor_id(params)
+        self.io_kind = self._require_str(io_cfg, "kind").lower()
+        self.io_sleep = float(io_cfg.get("sleep", 0.1))
+        self.timeout = float(io_cfg.get("timeout", 2.0))
+        self.idle_timeout = float(io_cfg.get("idle_timeout", min(0.25, self.timeout)))
+        self.command_sequence = self._resolve_command_sequence(init_cfg)
 
         if self.io_kind == "serial":
-            self.serial_port: str = self._require_str(io_cfg, "port")
+            self.serial_port = self._require_str(io_cfg, "port")
             self._ensure_shared_serial(self.serial_port, io_cfg)
+            self._initialized = True
             self.logger.info(
                 "[%s] initialized HMPASCII over serial port=%s id=%s",
                 self.name,
@@ -84,11 +89,12 @@ class HMPASCII(Instrument):
             return
 
         if self.io_kind in {"socket", "tcp"}:
-            self.host: str = self._require_str(io_cfg, "host")
-            self.socket_port: int = self._require_int(io_cfg, "port")
+            self.host = self._require_str(io_cfg, "host")
+            self.socket_port = self._require_int(io_cfg, "port")
             endpoint = self._socket_endpoint_key(self.host, self.socket_port)
             if endpoint not in self._socket_lock_by_endpoint:
                 self._socket_lock_by_endpoint[endpoint] = threading.Lock()
+            self._initialized = True
             self.logger.info(
                 "[%s] initialized HMPASCII over socket %s:%s id=%s",
                 self.name,
