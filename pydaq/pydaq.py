@@ -30,7 +30,8 @@ import schedule
 
 from pydaq.utils.config_handler import ApplicationConfig, InstrumentConfig, load_config
 from pydaq.dashboard import start_dashboard
-from pydaq.instruments.instrument import Instrument, get_driver_class
+from pydaq.instruments.instrument import Instrument
+from pydaq.instruments.registry import get_driver_class
 from pydaq.utils.transfer_handler import S3Target, SftpTarget, TransferHandler, TransferTarget
 from pydaq.utils.logging_handler import setup_logging
 from pydaq.utils.network_monitor import NetworkMonitor, ReachabilityTarget
