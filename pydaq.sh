@@ -38,7 +38,7 @@ USAGE
 # ---- parse args (minimal) ----
 CFG_IN=""
 if [[ ${#} -eq 0 ]]; then
-  CFG_IN="pydaq/configs/buc.yml"
+  CFG_IN="pydaq/configs/nrb.yml"
 elif [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
   usage
   exit 0

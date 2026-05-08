@@ -18,6 +18,7 @@ _DRIVER_MAP: dict[str, str] = {
     "49c": "pydaq.instruments.thermo:Thermo49C",
     "49cps": "pydaq.instruments.thermo:Thermo49CPS",
     "fidas": "pydaq.instruments.fidas:FIDAS",
+    "ae31": "pydaq.instruments.magee:AE31",
     "hmpascii": "pydaq.instruments.vaisala:HMPASCII",
 }
 

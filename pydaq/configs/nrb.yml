@@ -49,7 +49,7 @@ transfer:
         host: sftp.meteoswiss.ch
         user: gaw_kenya
         remote_base: "./nrb"
-        key: ~/.ssh/nrb-ed25519-20260508.ppk
+        key: ~/.ssh/nrb-ed25519-20260508
         proxy:
             socks5:             # proxy url (leave empty if no proxy is used)
             port: 1080
@@ -63,7 +63,7 @@ network_monitor:
 instruments:
   49c:
     enabled: false
-    driver: Thermo49c
+    driver: 49c
     io: 
       kind: serial
       device: /dev/ttyusb0 
@@ -91,7 +91,7 @@ instruments:
     id: 49
     serial_number: 49I-B1NAA-12103910681
     enabled: true
-    driver: Thermo49i
+    driver: 49i
     io: 
       kind: socket 
       host: 192.168.2.14
@@ -116,7 +116,7 @@ instruments:
     # mac: 00-18-7D-2D-CA-84
     # serial_number: 6082
     enabled: true
-    driver: FIDAS
+    driver: fidas
     io:
       kind: udp
       host: 0.0.0.0 #192.168.2.223
@@ -141,8 +141,8 @@ instruments:
 
   ae31:
     enabled: true
-    driver: pydaq.instruments.magee.AE31
-    id: "944:0810"
+    driver: ae31 #pydaq.instruments.magee.AE31
+    id: 9440810
     serial_number: "944:0810"
     io:
       kind: serial
