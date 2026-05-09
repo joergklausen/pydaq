@@ -20,6 +20,7 @@ _DRIVER_MAP: dict[str, str] = {
     "fidas": "pydaq.instruments.fidas:FIDAS",
     "ae31": "pydaq.instruments.magee:AE31",
     "hmpascii": "pydaq.instruments.vaisala:HMPASCII",
+    "aurora3000": "pydaq.instruments.ecotech:NEPH",
 }
 
 

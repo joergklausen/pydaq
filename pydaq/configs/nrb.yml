@@ -166,6 +166,45 @@ instruments:
     init: {}
     processing: {}
 
+  Aurora3000:
+# NB: [serial_timeout] seconds
+# NB: [sampling_interval] minutes
+# NB: [reporting_interval] minutes
+# NB: specify data, staging, archive relative to root
+  # serial_port: /dev/ttyUSB0
+  # serial_baudrate: 19200
+  # serial_timeout: 1
+  # sampling_interval: 1
+  # reporting_interval: 60
+  # data_path: aurora3000
+  # staging_path: aurora3000
+  # remote_path: aurora3000
+  enabled: false
+  driver: aurora3000
+  id: 
+  serial_number: 
+  io:
+    kind: serial
+    device: /dev/ttyUSB0
+    baudrate: 19200
+    bytesize: 8
+    parity: N
+    stopbits: 1
+    timeout_seconds: 5
+  schedule:
+    sample_every_seconds: 60
+    rollover: hourly
+    rollover_at: ":00"
+    transmit_every_seconds: 3600
+    transmit_delay_seconds: 15
+    print_every_seconds: 60
+  output:
+    format: csv_zip
+    remote_path: aurora3000
+    remove_on_success: true
+  init: {}
+  processing: {}
+
   hmp110-inlet:
     enabled: true
     driver: hmpascii
@@ -265,7 +304,7 @@ instruments:
       print_every_seconds: 30
     output:
       format: csv_zip
-      remote_path: hmp110-inlet
+      remote_path: hmp110-lab
       remove_on_success: true
     init:
       command_sequence:
