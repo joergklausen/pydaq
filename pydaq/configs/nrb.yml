@@ -179,7 +179,7 @@ instruments:
       port: /dev/ttyUSB1
       baudrate: 9600 
       bytesize: 8 
-      parity: n
+      parity: N
       stopbits: 1
       timeout_seconds: 1 
       timeout: 5.0
@@ -214,7 +214,7 @@ instruments:
       port: /dev/ttyUSB1
       baudrate: 9600 
       bytesize: 8 
-      parity: n
+      parity: N
       stopbits: 1
       timeout_seconds: 1 
       timeout: 5.0
@@ -249,7 +249,7 @@ instruments:
       port: /dev/ttyUSB1
       baudrate: 9600 
       bytesize: 8 
-      parity: n
+      parity: N
       stopbits: 1
       timeout_seconds: 1 
       timeout: 5.0
