@@ -116,7 +116,7 @@ instruments:
     # mac: 00-18-7D-2D-CA-84
     # serial_number: 6082
     enabled: true
-    driver: fidas
+    driver: FIDAS
     io:
       kind: udp
       host: 0.0.0.0 #192.168.2.223
