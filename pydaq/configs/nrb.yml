@@ -177,7 +177,7 @@ instruments:
       # port: 5004
       kind: serial
       port: /dev/ttyUSB1
-      baudrate: 9600 
+      baudrate: 19200 
       bytesize: 8 
       parity: N
       stopbits: 1
@@ -212,7 +212,7 @@ instruments:
       # port: 5004
       kind: serial
       port: /dev/ttyUSB1
-      baudrate: 9600 
+      baudrate: 19200 
       bytesize: 8 
       parity: N
       stopbits: 1
@@ -247,7 +247,7 @@ instruments:
       # port: 5004
       kind: serial
       port: /dev/ttyUSB1
-      baudrate: 9600 
+      baudrate: 19200 
       bytesize: 8 
       parity: N
       stopbits: 1
