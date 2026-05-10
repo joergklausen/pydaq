@@ -179,31 +179,31 @@ instruments:
   # data_path: aurora3000
   # staging_path: aurora3000
   # remote_path: aurora3000
-  enabled: false
-  driver: aurora3000
-  id: 
-  serial_number: 
-  io:
-    kind: serial
-    device: /dev/ttyUSB0
-    baudrate: 19200
-    bytesize: 8
-    parity: N
-    stopbits: 1
-    timeout_seconds: 5
-  schedule:
-    sample_every_seconds: 60
-    rollover: hourly
-    rollover_at: ":00"
-    transmit_every_seconds: 3600
-    transmit_delay_seconds: 15
-    print_every_seconds: 60
-  output:
-    format: csv_zip
-    remote_path: aurora3000
-    remove_on_success: true
-  init: {}
-  processing: {}
+    enabled: false
+    driver: aurora3000
+    id: 
+    serial_number: 
+    io:
+      kind: serial
+      device: /dev/ttyUSB0
+      baudrate: 19200
+      bytesize: 8
+      parity: N
+      stopbits: 1
+      timeout_seconds: 5
+    schedule:
+      sample_every_seconds: 60
+      rollover: hourly
+      rollover_at: ":00"
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 15
+      print_every_seconds: 60
+    output:
+      format: csv_zip
+      remote_path: aurora3000
+      remove_on_success: true
+    init: {}
+    processing: {}
 
   hmp110-inlet:
     enabled: true
