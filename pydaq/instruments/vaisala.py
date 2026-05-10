@@ -48,7 +48,7 @@ class HMPASCII(Instrument):
                 - "SEND {id}"
     """
 
-    HEADERS = ["dtm", "t", "rh", "td"]
+    HEADERS = ["dtm", "T", "RH", "Td"]
 
     _serial_by_port: dict[str, Any] = {}
     _serial_lock_by_port: dict[str, threading.Lock] = {}
@@ -65,6 +65,7 @@ class HMPASCII(Instrument):
         params = self._params()
         io_cfg = self._require_dict(params, "io")
         init_cfg = self._optional_dict(params, "init")
+        schedule_cfg = self._optional_dict(params, "schedule")
 
         self.max_fail_before_cooldown = int(init_cfg.get("max_fail_before_cooldown", 5))
         self.cooldown_seconds = float(init_cfg.get("cooldown_seconds", 120.0))
@@ -76,15 +77,22 @@ class HMPASCII(Instrument):
         self.idle_timeout = float(io_cfg.get("idle_timeout", min(0.25, self.timeout)))
         self.command_sequence = self._resolve_command_sequence(init_cfg)
 
+        self.sample_every_seconds = float(schedule_cfg.get("sample_every_seconds", 0) or 0)
+        self.aggregation_period_seconds = self._resolve_aggregation_period_seconds(schedule_cfg)
+        self._aggregation_lock = threading.Lock()
+        self._aggregation_bucket_start: datetime | None = None
+        self._aggregation_samples: list[dict[str, float]] = []
+
         if self.io_kind == "serial":
             self.serial_port = self._require_str(io_cfg, "port")
             self._ensure_shared_serial(self.serial_port, io_cfg)
             self._initialized = True
             self.logger.info(
-                "[%s] initialized HMPASCII over serial port=%s id=%s",
+                "[%s] initialized HMPASCII over serial port=%s id=%s aggregation_period_seconds=%s",
                 self.name,
                 self.serial_port,
                 self.sensor_id,
+                self.aggregation_period_seconds,
             )
             return
 
@@ -96,11 +104,12 @@ class HMPASCII(Instrument):
                 self._socket_lock_by_endpoint[endpoint] = threading.Lock()
             self._initialized = True
             self.logger.info(
-                "[%s] initialized HMPASCII over socket %s:%s id=%s",
+                "[%s] initialized HMPASCII over socket %s:%s id=%s aggregation_period_seconds=%s",
                 self.name,
                 self.host,
                 self.socket_port,
                 self.sensor_id,
+                self.aggregation_period_seconds,
             )
             return
 
@@ -129,16 +138,143 @@ class HMPASCII(Instrument):
 
             self.fail_count = 0
             self.cooldown_until = 0.0
-            return {
-                "dtm": self._now_string(),
-                "t": parsed["t"],
-                "rh": parsed["rh"],
-                "td": parsed.get("td"),
-            }
+
+            sample_time = self._now_utc()
+            if self.aggregation_period_seconds <= 0:
+                return self._format_record(sample_time, parsed)
+
+            aggregated = self._add_sample_and_maybe_emit(sample_time, parsed)
+            return aggregated or {}
         except Exception as exc:
             self._note_failure(str(exc))
             self.logger.error("[%s] get_record failed: %s", self.name, exc, exc_info=True)
             return {}
+
+
+    def _resolve_aggregation_period_seconds(self, schedule_cfg: dict[str, Any]) -> int:
+        """Return configured aggregation period in seconds.
+
+        The pydaq scheduler may poll a sensor more frequently than the value that
+        should be written to disk.  For example, the NRB HMP110 sensors are polled
+        every 5 seconds but should emit one 1-minute mean value.
+
+        Config keys supported under ``schedule``:
+        - ``aggregation_period_seconds``
+        - ``aggregation_period_minutes``
+
+        If no aggregation key is present, a conservative Vaisala default is used:
+        polling intervals below 60 seconds are aggregated to 60-second means.  Set
+        ``aggregation_period_minutes: 0`` to emit every sample.
+        """
+        raw_seconds = schedule_cfg.get("aggregation_period_seconds")
+        raw_minutes = schedule_cfg.get("aggregation_period_minutes")
+
+        if raw_seconds is not None:
+            period_seconds = int(round(float(raw_seconds)))
+        elif raw_minutes is not None:
+            period_seconds = int(round(float(raw_minutes) * 60.0))
+        elif 0 < self.sample_every_seconds < 60:
+            period_seconds = 60
+        else:
+            period_seconds = 0
+
+        if period_seconds <= 0:
+            return 0
+
+        if self.sample_every_seconds > period_seconds:
+            self.logger.warning(
+                "[%s] sample_every_seconds=%s is larger than aggregation_period_seconds=%s; "
+                "1 aggregation bucket may contain only one sample and gaps are possible",
+                self.name,
+                self.sample_every_seconds,
+                period_seconds,
+            )
+
+        return period_seconds
+
+    def _add_sample_and_maybe_emit(
+        self,
+        sample_time: datetime,
+        sample: dict[str, float],
+    ) -> dict[str, Any] | None:
+        """Add one parsed sample and emit a completed aggregate if available."""
+        bucket_start = self._period_start(sample_time, self.aggregation_period_seconds)
+
+        with self._aggregation_lock:
+            if self._aggregation_bucket_start is None:
+                self._aggregation_bucket_start = bucket_start
+                self._aggregation_samples = [sample]
+                return None
+
+            if bucket_start == self._aggregation_bucket_start:
+                self._aggregation_samples.append(sample)
+                return None
+
+            if bucket_start < self._aggregation_bucket_start:
+                self.logger.warning(
+                    "[%s] system clock moved backwards for HMPASCII aggregation: "
+                    "current_bucket=%s previous_bucket=%s; resetting buffer",
+                    self.name,
+                    bucket_start.isoformat(),
+                    self._aggregation_bucket_start.isoformat(),
+                )
+                self._aggregation_bucket_start = bucket_start
+                self._aggregation_samples = [sample]
+                return None
+
+            completed_start = self._aggregation_bucket_start
+            completed_samples = self._aggregation_samples
+            self._aggregation_bucket_start = bucket_start
+            self._aggregation_samples = [sample]
+
+        if not completed_samples:
+            return None
+
+        record = self._aggregate_samples(completed_start, completed_samples)
+        self.logger.debug(
+            "[%s] emitted %ss HMPASCII aggregate for %s from %d samples",
+            self.name,
+            self.aggregation_period_seconds,
+            record["dtm"],
+            len(completed_samples),
+        )
+        return record
+
+    def _aggregate_samples(
+        self,
+        bucket_start: datetime,
+        samples: list[dict[str, float]],
+    ) -> dict[str, Any]:
+        """Average numeric HMP fields for one completed aggregation bucket."""
+
+        def mean_field(field: str) -> float | None:
+            values = [float(item[field]) for item in samples if field in item and item[field] is not None]
+            if not values:
+                return None
+            return sum(values) / len(values)
+
+        return {
+            "dtm": self._format_datetime(bucket_start),
+            "t": mean_field("t"),
+            "rh": mean_field("rh"),
+            "td": mean_field("td"),
+        }
+
+    def _format_record(self, sample_time: datetime, parsed: dict[str, float]) -> dict[str, Any]:
+        """Format a single non-aggregated sample using the canonical HMP headers."""
+        return {
+            "dtm": self._format_datetime(sample_time),
+            "t": parsed["t"],
+            "rh": parsed["rh"],
+            "td": parsed.get("td"),
+        }
+
+    @staticmethod
+    def _period_start(timestamp: datetime, period_seconds: int) -> datetime:
+        """Return the UTC-aligned start of the aggregation bucket."""
+        epoch_seconds = int(timestamp.replace(tzinfo=timezone.utc).timestamp())
+        bucket_epoch = epoch_seconds - (epoch_seconds % period_seconds)
+        return datetime.fromtimestamp(bucket_epoch, tz=timezone.utc).replace(microsecond=0)
 
     def _params(self) -> dict[str, Any]:
         """Return the orchestrator-supplied driver parameters."""
@@ -361,5 +497,13 @@ class HMPASCII(Instrument):
         return f"{host}:{port}"
 
     @staticmethod
+    def _now_utc() -> datetime:
+        return datetime.now(timezone.utc).replace(microsecond=0)
+
+    @staticmethod
+    def _format_datetime(value: datetime) -> str:
+        return value.astimezone(timezone.utc).replace(tzinfo=None, microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+
+    @staticmethod
     def _now_string() -> str:
-        return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+        return HMPASCII._format_datetime(HMPASCII._now_utc())
