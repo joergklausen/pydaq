@@ -35,8 +35,9 @@ import importlib
 import inspect
 import socket
 import time
+from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
@@ -284,6 +285,172 @@ class LineComms:
         return buf.decode("utf-8", errors="ignore").strip()
 
 
+class TimeBucketAggregator:
+    """Reusable UTC-aligned fixed-period record aggregator.
+
+    Drivers can use this when an instrument is polled more frequently than the
+    output cadence.  The aggregator buffers raw records and emits exactly one
+    aggregate when a new time bucket begins.  Until then, :meth:`add` returns
+    ``None``.
+
+    The default strategy is to average numeric fields and ignore empty values.
+    Per-field strategies can be supplied for state or cumulative fields:
+    ``mean``, ``sum``, ``last``, ``first`` or ``mode``.
+    """
+
+    def __init__(
+        self,
+        *,
+        period_seconds: int,
+        datetime_field: str = "dtm",
+        timestamp: str = "start",
+        default_method: str = "mean",
+        methods: Mapping[str, str] | None = None,
+        datetime_format: str = "%Y-%m-%d %H:%M:%S",
+        logger=None,
+        name: str = "",
+    ) -> None:
+        if period_seconds <= 0:
+            raise ValueError("period_seconds must be > 0 for TimeBucketAggregator.")
+        timestamp = timestamp.strip().lower()
+        if timestamp not in {"start", "end"}:
+            raise ValueError("timestamp must be 'start' or 'end'.")
+        default_method = default_method.strip().lower()
+        if default_method not in {"mean", "sum", "last", "first", "mode"}:
+            raise ValueError("default_method must be one of: mean, sum, last, first, mode.")
+
+        self.period_seconds = int(period_seconds)
+        self.datetime_field = datetime_field
+        self.timestamp = timestamp
+        self.default_method = default_method
+        self.methods = {str(k): str(v).strip().lower() for k, v in (methods or {}).items()}
+        self.datetime_format = datetime_format
+        self.logger = logger
+        self.name = name
+        self._bucket_start: datetime | None = None
+        self._records: list[dict[str, Any]] = []
+
+    def add(self, record: Mapping[str, Any]) -> dict[str, Any] | None:
+        """Buffer one record and emit a completed aggregate if available."""
+        dtm = self._record_datetime(record)
+        bucket_start = self._bucket_start_for(dtm)
+        record_copy = dict(record)
+
+        if self._bucket_start is None:
+            self._bucket_start = bucket_start
+            self._records = [record_copy]
+            return None
+
+        if bucket_start == self._bucket_start:
+            self._records.append(record_copy)
+            return None
+
+        if bucket_start < self._bucket_start:
+            if self.logger:
+                self.logger.warning(
+                    "[%s] aggregation timestamp moved backwards: new_bucket=%s current_bucket=%s; resetting buffer",
+                    self.name,
+                    bucket_start.isoformat(),
+                    self._bucket_start.isoformat(),
+                )
+            self._bucket_start = bucket_start
+            self._records = [record_copy]
+            return None
+
+        completed_start = self._bucket_start
+        completed_records = self._records
+        self._bucket_start = bucket_start
+        self._records = [record_copy]
+        return self._aggregate(completed_records, completed_start)
+
+    def flush(self) -> dict[str, Any] | None:
+        """Emit the currently buffered bucket, if any, and clear the buffer."""
+        if self._bucket_start is None or not self._records:
+            return None
+        completed_start = self._bucket_start
+        completed_records = self._records
+        self._bucket_start = None
+        self._records = []
+        return self._aggregate(completed_records, completed_start)
+
+    def _aggregate(self, records: list[dict[str, Any]], bucket_start: datetime) -> dict[str, Any]:
+        if not records:
+            return {}
+
+        dtm = bucket_start if self.timestamp == "start" else bucket_start + timedelta(seconds=self.period_seconds)
+        result: dict[str, Any] = {self.datetime_field: self._format_datetime(dtm)}
+
+        fields: list[str] = []
+        seen: set[str] = set()
+        for record in records:
+            for field in record:
+                if field == self.datetime_field or field in seen:
+                    continue
+                seen.add(field)
+                fields.append(field)
+
+        for field in fields:
+            values = [record.get(field) for record in records if record.get(field) not in (None, "")]
+            if not values:
+                result[field] = None
+                continue
+            method = self.methods.get(field, self.default_method)
+            result[field] = self._aggregate_values(values, method)
+
+        return result
+
+    def _aggregate_values(self, values: list[Any], method: str) -> Any:
+        if method == "last":
+            return values[-1]
+        if method == "first":
+            return values[0]
+        if method == "mode":
+            return Counter(values).most_common(1)[0][0]
+
+        numeric = [self._as_float(value) for value in values]
+        if method == "sum":
+            return sum(numeric)
+        if method == "mean":
+            return sum(numeric) / len(numeric)
+        raise ValueError(f"Unsupported aggregation method {method!r}.")
+
+    def _record_datetime(self, record: Mapping[str, Any]) -> datetime:
+        value = record.get(self.datetime_field)
+        if isinstance(value, datetime):
+            dtm = value
+        elif isinstance(value, str):
+            text = value.strip().replace("T", " ")
+            if text.endswith("Z"):
+                text = text[:-1] + "+00:00"
+            try:
+                dtm = datetime.fromisoformat(text)
+            except ValueError:
+                dtm = datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
+        else:
+            raise ValueError(f"Record has no valid {self.datetime_field!r}: {record!r}")
+
+        if dtm.tzinfo is None:
+            return dtm.replace(tzinfo=timezone.utc)
+        return dtm.astimezone(timezone.utc)
+
+    def _bucket_start_for(self, timestamp: datetime) -> datetime:
+        dtm = timestamp.astimezone(timezone.utc).replace(microsecond=0)
+        epoch_seconds = int(dtm.timestamp())
+        bucket_epoch = epoch_seconds - (epoch_seconds % self.period_seconds)
+        return datetime.fromtimestamp(bucket_epoch, tz=timezone.utc).replace(microsecond=0)
+
+    def _format_datetime(self, value: datetime) -> str:
+        return value.astimezone(timezone.utc).replace(tzinfo=None, microsecond=0).strftime(self.datetime_format)
+
+    @staticmethod
+    def _as_float(value: object) -> float:
+        if value is None or value == "":
+            raise ValueError("Cannot convert an empty value to float for aggregation.")
+        if isinstance(value, (int, float, str)):
+            return float(value)
+        raise TypeError(f"Cannot convert {type(value).__name__} to float for aggregation.")
+
+
 class Instrument:
     """Abstract instrument interface with a worker thread and task queue."""
 
@@ -324,6 +491,7 @@ class Instrument:
         self._thread: Optional[Thread] = None
         self._state_lock = Lock()
         self._consecutive_empty_records = 0
+        self.empty_record_is_ok = False
 
         self.writer: Optional[HourlyCsvWriter] = None
         if headers:
@@ -429,6 +597,10 @@ class Instrument:
 
         record = self.get_record()
         if not record:
+            if getattr(self, "empty_record_is_ok", False):
+                self.logger.debug("no complete aggregate record ready yet")
+                return
+
             with self._state_lock:
                 self._consecutive_empty_records += 1
                 count = self._consecutive_empty_records

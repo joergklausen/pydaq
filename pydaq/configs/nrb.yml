@@ -166,23 +166,15 @@ instruments:
     init: {}
     processing: {}
 
-  Aurora3000:
-# NB: [serial_timeout] seconds
-# NB: [sampling_interval] minutes
-# NB: [reporting_interval] minutes
-# NB: specify data, staging, archive relative to root
-  # serial_port: /dev/ttyUSB0
-  # serial_baudrate: 19200
-  # serial_timeout: 1
-  # sampling_interval: 1
-  # reporting_interval: 60
-  # data_path: aurora3000
-  # staging_path: aurora3000
-  # remote_path: aurora3000
-    enabled: false
+  aurora3000:
+    # Ecotech Aurora 3000 nephelometer using the legacy Aurora ASCII protocol.
+    # Set enabled: true once the serial device path has been verified on the NRB RPi.
+    enabled: true
     driver: aurora3000
-    id: 
-    serial_number: 
+    protocol: aurora
+    id: 0                       # Aurora serial address; VI099/ID0 when id=0.
+    serial_id: 0
+    serial_number: ""
     io:
       kind: serial
       device: /dev/ttyUSB0
@@ -190,9 +182,12 @@ instruments:
       bytesize: 8
       parity: N
       stopbits: 1
-      timeout_seconds: 5
+      timeout_seconds: 1
+      read_sleep: 0.05
     schedule:
-      sample_every_seconds: 60
+      sample_every_seconds: 5             # Poll instant VI099 readings every 5 s.
+      aggregation_period_minutes: 1       # Emit one averaged record per minute.
+      aggregation_timestamp: end          # Match the legacy Aurora reference-file convention.
       rollover: hourly
       rollover_at: ":00"
       transmit_every_seconds: 3600
@@ -202,8 +197,10 @@ instruments:
       format: csv_zip
       remote_path: aurora3000
       remove_on_success: true
-    init: {}
-    processing: {}
+    init:
+      id_on_initialize: true
+    processing:
+      aggregation_method: mean            # Aurora reference files average all VI099 numeric fields.
 
   hmp110-inlet:
     enabled: true

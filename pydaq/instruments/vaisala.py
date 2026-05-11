@@ -12,7 +12,7 @@ try:
 except ModuleNotFoundError:
     serial = None  # type: ignore[assignment]
 
-from pydaq.instruments.instrument import Instrument
+from pydaq.instruments.instrument import Instrument, TimeBucketAggregator
 
 
 _MEAS_RE = re.compile(
@@ -82,6 +82,20 @@ class HMPASCII(Instrument):
         self._aggregation_lock = threading.Lock()
         self._aggregation_bucket_start: datetime | None = None
         self._aggregation_samples: list[dict[str, float]] = []
+        self._aggregator = (
+            TimeBucketAggregator(
+                period_seconds=self.aggregation_period_seconds,
+                datetime_field="dtm",
+                timestamp="start",
+                default_method="mean",
+                methods={"T": "mean", "RH": "mean", "Td": "mean"},
+                logger=self.logger,
+                name=self.name,
+            )
+            if self.aggregation_period_seconds > 0
+            else None
+        )
+        self.empty_record_is_ok = self.aggregation_period_seconds > 0
 
         if self.io_kind == "serial":
             self.serial_port = self._require_str(io_cfg, "port")
@@ -140,10 +154,11 @@ class HMPASCII(Instrument):
             self.cooldown_until = 0.0
 
             sample_time = self._now_utc()
-            if self.aggregation_period_seconds <= 0:
-                return self._format_record(sample_time, parsed)
+            record = self._format_record(sample_time, parsed)
+            if self._aggregator is None:
+                return record
 
-            aggregated = self._add_sample_and_maybe_emit(sample_time, parsed)
+            aggregated = self._aggregator.add(record)
             return aggregated or {}
         except Exception as exc:
             self._note_failure(str(exc))
@@ -255,18 +270,18 @@ class HMPASCII(Instrument):
 
         return {
             "dtm": self._format_datetime(bucket_start),
-            "t": mean_field("t"),
-            "rh": mean_field("rh"),
-            "td": mean_field("td"),
+            "T": mean_field("t"),
+            "RH": mean_field("rh"),
+            "Td": mean_field("td"),
         }
 
     def _format_record(self, sample_time: datetime, parsed: dict[str, float]) -> dict[str, Any]:
         """Format a single non-aggregated sample using the canonical HMP headers."""
         return {
             "dtm": self._format_datetime(sample_time),
-            "t": parsed["t"],
-            "rh": parsed["rh"],
-            "td": parsed.get("td"),
+            "T": parsed["t"],
+            "RH": parsed["rh"],
+            "Td": parsed.get("td"),
         }
 
     @staticmethod
