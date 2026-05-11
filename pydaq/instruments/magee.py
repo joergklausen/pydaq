@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
+from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from pydaq.instruments.instrument import Instrument
@@ -216,12 +217,20 @@ class MageeBase(Instrument):
 class AE31(MageeBase):
     """Magee AE31 serial driver.
 
-    The driver follows the original AE31 approach: read one raw instrument line, prepend PC
-    acquisition time and configured instrument id, and assign the result positionally to a
-    stable header. No scientific remapping is done here.
+    The AE31 streams one full data line at its configured reporting interval.
+    The important acquisition rule is therefore to keep the serial port open:
+    closing and reopening the port for every scheduled read can miss a line that
+    arrived just before the port was opened.  This driver opens the port during
+    initialization, leaves it open, and protects reads with a shared per-port
+    lock.
     """
 
     HEADERS = AE31_HEADERS
+
+    _registry_lock = Lock()
+    _serial_by_port: Dict[str, Any] = {}
+    _serial_lock_by_port: Dict[str, Lock] = {}
+    _owner_by_port: Dict[str, str] = {}
 
     def __init__(
         self,
@@ -256,17 +265,28 @@ class AE31(MageeBase):
                 self.io.get("serial_timeout_seconds", self.parameters.get("serial_timeout", 2)),
             )
         )
+        self._serial_lock = Lock()
+        self._serial_handle: Any | None = None
 
     def initialize(self) -> None:
         if serial is None:  # pragma: no cover
             raise RuntimeError("pyserial is not available but AE31 requires serial communication.")
+        if not self.serial_port:
+            raise ValueError("AE31 requires io.device or io.port in configuration.")
+
+        self._ensure_serial_open()
         self.logger.info(
-            "AE31 ready port=%s baudrate=%s timeout_seconds=%s serial_number=%s",
+            "AE31 ready port=%s baudrate=%s timeout_seconds=%s serial_number=%s persistent_serial=true",
             self.serial_port,
             self.baudrate,
             self.timeout_seconds,
             self.serial_number or "unknown",
         )
+
+    def stop(self) -> None:
+        """Close the persistent AE31 serial handle when the driver stops."""
+        self._close_serial_handle()
+        super().stop()
 
     def get_record(self) -> Dict[str, Any]:
         if serial is None:  # pragma: no cover
@@ -275,25 +295,85 @@ class AE31(MageeBase):
             raise ValueError("AE31 requires io.device or io.port in configuration.")
 
         try:
-            with serial.Serial(
+            self._ensure_serial_open()
+            assert self._serial_handle is not None
+            with self._serial_lock:
+                raw = self._serial_handle.readline().decode("ascii", errors="ignore").strip()
+        except Exception as exc:
+            self._set_last_error(str(exc))
+            self._close_serial_handle()
+            raise
+
+        if not raw:
+            self._set_last_error(
+                f"AE31 returned an empty line after timeout_seconds={self.timeout_seconds}."
+            )
+            return {}
+
+        self._set_last_error("")
+        return self._parse_data_line(raw)
+
+    def _ensure_serial_open(self) -> None:
+        """Open the AE31 serial port once and keep a shared handle per port.
+
+        The method intentionally does **not** reset or flush input buffers.  For
+        a streaming instrument, bytes that arrived between scheduled reads are
+        the data we want to preserve.
+        """
+        if serial is None:  # pragma: no cover
+            raise RuntimeError("pyserial is not available but AE31 requires serial communication.")
+
+        with self._registry_lock:
+            if self.serial_port not in self._serial_lock_by_port:
+                self._serial_lock_by_port[self.serial_port] = Lock()
+            self._serial_lock = self._serial_lock_by_port[self.serial_port]
+
+        with self._serial_lock:
+            existing = self._serial_by_port.get(self.serial_port)
+            if existing is not None and getattr(existing, "is_open", False):
+                self._serial_handle = existing
+                owner = self._owner_by_port.get(self.serial_port, "unknown")
+                if owner != self.name:
+                    self.logger.warning(
+                        "AE31 serial port %s is already owned by %s; sharing handle with %s",
+                        self.serial_port,
+                        owner,
+                        self.name,
+                    )
+                return
+
+            handle = serial.Serial(
                 port=self.serial_port,
                 baudrate=self.baudrate,
                 bytesize=self.bytesize,
                 parity=self.parity,
                 stopbits=self.stopbits,
                 timeout=self.timeout_seconds,
-            ) as ser:
-                raw = ser.readline().decode("ascii", errors="ignore").strip()
-        except Exception as exc:
-            self._set_last_error(str(exc))
-            raise
+            )
+            self._serial_by_port[self.serial_port] = handle
+            self._owner_by_port[self.serial_port] = self.name
+            self._serial_handle = handle
 
-        if not raw:
-            self._set_last_error("AE31 returned an empty line.")
-            return {}
+    def _close_serial_handle(self) -> None:
+        """Close this driver's shared serial handle, best effort."""
+        if not self.serial_port:
+            return
 
-        self._set_last_error("")
-        return self._parse_data_line(raw)
+        lock = self._serial_lock_by_port.get(self.serial_port, self._serial_lock)
+        with lock:
+            handle = self._serial_by_port.get(self.serial_port)
+            if handle is None:
+                self._serial_handle = None
+                return
+            try:
+                if getattr(handle, "is_open", False):
+                    handle.close()
+            except Exception as exc:
+                self.logger.warning("AE31 failed to close serial port %s: %s", self.serial_port, exc)
+            finally:
+                self._serial_by_port.pop(self.serial_port, None)
+                self._owner_by_port.pop(self.serial_port, None)
+                self._serial_handle = None
 
     def _parse_data_line(self, raw: str) -> Dict[str, Any]:
         values = [_utc_now_string(), self.instrument_id]
