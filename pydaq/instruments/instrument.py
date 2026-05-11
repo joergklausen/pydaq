@@ -42,6 +42,7 @@ from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 from typing import Any, Callable, Dict, List, Mapping, Optional
+from decimal import Decimal
 
 from pydaq.utils.storage_handler import (HourlyCsvWriter,  # type: ignore
                                          WriterConfig)
@@ -446,7 +447,7 @@ class TimeBucketAggregator:
     def _as_float(value: object) -> float:
         if value is None or value == "":
             raise ValueError("Cannot convert an empty value to float for aggregation.")
-        if isinstance(value, (int, float, str)):
+        if isinstance(value, (int, float, Decimal, str)):
             return float(value)
         raise TypeError(f"Cannot convert {type(value).__name__} to float for aggregation.")
 
