@@ -12,8 +12,7 @@ from typing import Type
 from pydaq.instruments.instrument import Instrument
 
 
-# Canonical config values.  Aliases are included where they keep station YAML
-# readable while still resolving to one driver implementation.
+# Canonical config values. Keep this list intentionally small.
 _DRIVER_MAP: dict[str, str] = {
     "49i": "pydaq.instruments.thermo:Thermo49i",
     "49c": "pydaq.instruments.thermo:Thermo49C",
@@ -21,12 +20,8 @@ _DRIVER_MAP: dict[str, str] = {
     "fidas": "pydaq.instruments.fidas:FIDAS",
     "ae31": "pydaq.instruments.magee:AE31",
     "hmpascii": "pydaq.instruments.vaisala:HMPASCII",
-    # Ecotech / ACOEM nephelometers.  Keep aurora3000 for existing config,
-    # but allow the more general names needed for the unified driver.
     "aurora3000": "pydaq.instruments.ecotech:NEPH",
-    "ecotech": "pydaq.instruments.ecotech:NEPH",
-    "neph": "pydaq.instruments.ecotech:NEPH",
-    "ne300": "pydaq.instruments.ecotech:NEPH",
+    "avo": "pydaq.instruments.avo:AVO",
 }
 
 
@@ -85,8 +80,7 @@ def get_driver_class(driver: str) -> Type[Instrument]:
         supported = ", ".join(list_drivers())
         raise ValueError(
             f"Unknown instrument driver {driver!r}. Supported drivers: {supported}. "
-            "For Vaisala HMP sensors in ASCII mode, use driver: hmpascii. "
-            "For Ecotech/Aurora nephelometers, use driver: aurora3000 or ecotech."
+            f"For Vaisala HMP sensors in ASCII mode, use driver: hmpascii"
         )
 
     return _load_class(spec)
