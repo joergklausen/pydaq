@@ -1,6 +1,6 @@
 station:
   wsi: 0-20008-0-NRB
-  id: nrb
+  id: nrb # must be exactly 3 characters, used in file naming and remote paths
   name: Nairobi (GAW Regional Station)
   timezone: UTC
 
@@ -306,9 +306,11 @@ instruments:
     enabled: true
     driver: avo
     io:
+      kind: http
       urls:
         mogogosiek: https://device.iqair.com/v2/64b78e3ed49ffdbbf25ce862
         nairobi: https://device.iqair.com/v2/64b79227b6f7b1125b019970
+        nairobi-unep: https://device.iqair.com/v2/66b49848bc7616df52bd5100
         bomet: https://device.iqair.com/v2/64ad7a78e939e8f45b826839
       validated: false
       timeout_seconds: 30

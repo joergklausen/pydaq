@@ -14,7 +14,7 @@ from pydaq.pydaq import Orchestrator
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="pydaq", description="PYDAQ station data acquisition orchestrator")
+    parser = argparse.ArgumentParser(prog="pydaq", description="PYDAQ data acquisition system for atmospheric monitoring")
     parser.add_argument(
         "-c",
         "--config",

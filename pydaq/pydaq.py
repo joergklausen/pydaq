@@ -90,7 +90,7 @@ class Orchestrator:
             level_console=self.application_config.logging.level_console,
             level_file=self.application_config.logging.level_file,
         )
-        self.logger.info("=== PYDAQ started station=%s config=%s", self.application_config.station.id, self.config_path)
+        self.logger.info("=== PYDAQ started (station=%s config=%s)", self.application_config.station.id, self.config_path)
 
         for directory in (
             self.application_config.paths.data,
