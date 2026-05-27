@@ -3,49 +3,54 @@ from __future__ import annotations
 """iQAir AirVisual Outdoor (AVO) HTTP downloader for pydaq.
 
 The AirVisual Outdoor API returns batches of historical values rather than a
-single instrument sample.  Therefore this driver intentionally does not use the
-base class CSV writer.  Each scheduled acquisition downloads one or more AVO
+single instrument sample. Therefore this driver intentionally does not use the
+base class CSV writer. Each scheduled acquisition downloads one or more AVO
 URLs, appends/deduplicates the returned historical data sets into Parquet files,
 and copies the updated files to the instrument outbox so pydaq's normal transfer
 machinery can upload them.
 
+Important path convention
+-------------------------
+The pydaq orchestrator passes per-instrument directories to each driver, for
+example ``data/avo`` and ``outbox/avo``. Therefore this driver must write and
+stage directly in those directories by default. It must not append the instrument
+name a second time, otherwise files end up below ``outbox/avo/avo`` and the
+common transfer scanner does not see them.
+
 Supported YAML shapes::
 
-    instruments:
-      avo:
-        enabled: true
-        driver: avo
-        io:
-          kind: http
-          urls:
-            nairobi: https://device.iqair.com/v2/...
-            bomet:
-              url: https://device.iqair.com/v2/...
-              validated: false
-          timeout_seconds: 30
-          retries: 3
-          backoff_seconds: 2
-        schedule:
-          sample_every_seconds: 21600   # 6 hours
-          transmit_every_seconds: 3600
-        output:
-          remote_path: avo
-          data_path: avo
-          staging_path: avo
-          remove_on_success: true
-        processing:
-          datasets: [instant, hourly, daily, monthly]
-          append: true
-          remove_duplicates: true
+  instruments:
+    avo:
+      enabled: true
+      driver: avo
+      io:
+        kind: http
+        urls:
+          nairobi: https://device.iqair.com/v2/...
+          bomet:
+            url: https://device.iqair.com/v2/...
+            validated: false
+        timeout_seconds: 30
+        retries: 3
+        backoff_seconds: 2
+      schedule:
+        sample_every_seconds: 21600  # 6 hours
+        transmit_every_seconds: 3600
+      output:
+        remote_path: avo
+        remove_on_success: true
+      processing:
+        datasets: [instant, hourly, daily, monthly]
+        append: true
+        remove_duplicates: true
 """
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 import shutil
 import time
-from typing import Any, Dict, Iterable, Mapping, Optional, Sequence
+from typing import Any, Dict, Mapping, Optional, Sequence
 
 try:
     import polars as pl
@@ -61,6 +66,7 @@ from pydaq.instruments.instrument import Instrument
 
 
 DEFAULT_DATASETS: tuple[str, ...] = ("instant", "hourly", "daily", "monthly")
+
 NUMERIC_DTYPES = {
     "Int8",
     "Int16",
@@ -88,7 +94,7 @@ class AVO(Instrument):
 
     The driver is batch-oriented: one scheduled ``append_record`` call may write
     several Parquet files, for example one file per source and historical data
-    set (``instant``, ``hourly``, ``daily``, ``monthly``).  The files are staged
+    set (``instant``, ``hourly``, ``daily``, ``monthly``). The files are staged
     immediately into pydaq's outbox and then transferred by the common transfer
     scanner.
     """
@@ -105,7 +111,7 @@ class AVO(Instrument):
         writer_config=None,
         parameters: Optional[Dict[str, Any]] = None,
     ) -> None:
-        # Intentionally disable the base CSV writer.  AVO writes batch Parquet
+        # Intentionally disable the base CSV writer. AVO writes batch Parquet
         # files itself because each HTTP call returns many rows and data sets.
         super().__init__(
             name,
@@ -127,8 +133,11 @@ class AVO(Instrument):
         self.append_existing = True
         self.remove_duplicates = True
         self.stage_files = True
-        self.data_path = self.data_dir / self.name
-        self.staging_path = self.outbox_dir / self.name
+
+        # The orchestrator already passes per-instrument base folders
+        # (e.g. data/avo and outbox/avo).  Do not append self.name here.
+        self.data_path = self.data_dir
+        self.staging_path = self.outbox_dir
         self.user_agent = "pydaq-avo/1.0"
 
     def initialize(self) -> None:
@@ -155,20 +164,28 @@ class AVO(Instrument):
         self.timeout_seconds = float(io_cfg.get("timeout_seconds", io_cfg.get("timeout", 30.0)))
         self.retries = int(io_cfg.get("retries", 2))
         self.backoff_seconds = float(io_cfg.get("backoff_seconds", 2.0))
-        self.verify_tls = self._as_bool(io_cfg.get("verify", io_cfg.get("verify_tls", True)), default=True)
+        self.verify_tls = self._as_bool(
+            io_cfg.get("verify", io_cfg.get("verify_tls", True)),
+            default=True,
+        )
         self.user_agent = str(io_cfg.get("user_agent", self.user_agent))
 
         self.append_existing = self._as_bool(processing_cfg.get("append", True), default=True)
-        self.remove_duplicates = self._as_bool(processing_cfg.get("remove_duplicates", True), default=True)
+        self.remove_duplicates = self._as_bool(
+            processing_cfg.get("remove_duplicates", True),
+            default=True,
+        )
         self.stage_files = self._as_bool(output_cfg.get("stage", True), default=True)
 
+        # Default to the per-instrument directories supplied by the orchestrator.
+        # This prevents data/avo/avo and outbox/avo/avo from being created.
         self.data_path = self._resolve_path(
             base=self.data_dir,
-            configured=output_cfg.get("data_path", params.get("data_path", self.name)),
+            configured=output_cfg.get("data_path", params.get("data_path", ".")),
         )
         self.staging_path = self._resolve_path(
             base=self.outbox_dir,
-            configured=output_cfg.get("staging_path", params.get("staging_path", self.name)),
+            configured=output_cfg.get("staging_path", params.get("staging_path", ".")),
         )
 
         self.data_path.mkdir(parents=True, exist_ok=True)
@@ -188,7 +205,7 @@ class AVO(Instrument):
         """Run one download cycle and return a summary record.
 
         Returns:
-            Summary mapping for dashboard/state use.  The actual downloaded data
+            Summary mapping for dashboard/state use. The actual downloaded data
             are stored as Parquet files by :meth:`append_record` / this method.
         """
         return self._download_cycle()
@@ -326,14 +343,19 @@ class AVO(Instrument):
             if not isinstance(entries, Sequence) or isinstance(entries, (str, bytes)):
                 raise ValueError(f"AVO historical.{dataset} is not a list.")
             if not entries:
-                self.logger.warning("[%s] source=%s dataset=%s returned no rows", self.name, source.name, dataset)
+                self.logger.warning(
+                    "[%s] source=%s dataset=%s returned no rows",
+                    self.name,
+                    source.name,
+                    dataset,
+                )
                 continue
 
             frame = self._entries_to_frame(entries)
             if frame.is_empty():
                 continue
-            rows_total += frame.height
 
+            rows_total += frame.height
             target = self._target_file(station=station, dataset=dataset, now=now)
             frame = self._merge_existing(target=target, incoming=frame)
             frame.write_parquet(target)
@@ -353,10 +375,12 @@ class AVO(Instrument):
         for entry in entries:
             if not isinstance(entry, Mapping):
                 continue
+
             row = self.flatten_data(entry)
             if "ts" not in row:
                 raise ValueError("AVO row has no 'ts' timestamp column.")
-            # Parse timestamps before constructing the Polars frame.  Newer
+
+            # Parse timestamps before constructing the Polars frame. Newer
             # Polars versions reject expression-based parsing of ISO strings
             # that contain a timezone unless a format/timezone is specified.
             # Using Python's datetime parser here keeps the driver stable across
@@ -369,16 +393,15 @@ class AVO(Instrument):
             return pl.DataFrame()
 
         frame = pl.DataFrame(rows)
-
         casts = []
         for column, dtype in frame.schema.items():
             if column in {"ts", "dtm"}:
                 continue
             if dtype.__class__.__name__ in NUMERIC_DTYPES or str(dtype) in NUMERIC_DTYPES:
                 casts.append(pl.col(column).cast(pl.Float32, strict=False))
+
         if casts:
             frame = frame.with_columns(casts)
-
         return frame
 
     @staticmethod
@@ -386,7 +409,7 @@ class AVO(Instrument):
         """Parse an AVO timestamp and return a naive UTC datetime.
 
         AVO API timestamps are usually ISO-8601 strings such as
-        ``2026-05-11T00:00:00Z``.  The returned value deliberately has no
+        ``2026-05-11T00:00:00Z``. The returned value deliberately has no
         ``tzinfo`` because pydaq stores UTC timestamps as timezone-naive values
         in local files.
         """
@@ -457,14 +480,36 @@ class AVO(Instrument):
             else:
                 if not last_was_sep:
                     out.append("_")
-                    last_was_sep = True
+                last_was_sep = True
         return "".join(out).strip("_") or fallback.lower().replace(" ", "_")
 
     @staticmethod
     def _resolve_path(*, base: Path, configured: Any) -> Path:
-        path = Path(str(configured)).expanduser()
+        """Resolve an optional AVO data/staging path.
+
+        The orchestrator already passes per-instrument directories, e.g.
+        ``data/avo`` and ``outbox/avo``. Therefore the default must be the
+        supplied base directory itself, not ``base / instrument_name``.
+
+        For backward compatibility with existing configs such as
+        ``data_path: avo`` or ``staging_path: avo``, avoid duplicating the final
+        path component when the configured relative path is exactly the base
+        directory name.
+        """
+        if configured is None:
+            return base
+
+        text = str(configured).strip()
+        if not text or text == ".":
+            return base
+
+        path = Path(text).expanduser()
         if path.is_absolute():
             return path
+
+        if len(path.parts) == 1 and path.parts[0] == base.name:
+            return base
+
         return base / path
 
     @staticmethod
@@ -495,7 +540,10 @@ class AVO(Instrument):
 
     def _normalize_sources(self, *, params: Mapping[str, Any], io_cfg: Mapping[str, Any]) -> list[AVOSource]:
         raw_sources = io_cfg.get("sources", io_cfg.get("urls", params.get("sources", params.get("urls"))))
-        global_validated = self._as_bool(io_cfg.get("validated", params.get("validated", False)), default=False)
+        global_validated = self._as_bool(
+            io_cfg.get("validated", params.get("validated", False)),
+            default=False,
+        )
 
         if raw_sources is None:
             url = io_cfg.get("url", params.get("url"))
@@ -513,7 +561,10 @@ class AVO(Instrument):
                     url = value.get("url")
                     if not url:
                         raise ValueError(f"[{self.name}] AVO source {name!r} has no url.")
-                    validated = self._as_bool(value.get("validated", global_validated), default=global_validated)
+                    validated = self._as_bool(
+                        value.get("validated", global_validated),
+                        default=global_validated,
+                    )
                     sources.append(AVOSource(name=source_name, url=str(url), validated=validated))
                 else:
                     raise ValueError(f"[{self.name}] invalid AVO source {name!r}: {value!r}")
@@ -527,7 +578,10 @@ class AVO(Instrument):
                 if not url:
                     raise ValueError(f"[{self.name}] AVO source item {index} has no url.")
                 source_name = str(value.get("name", f"source_{index + 1}"))
-                validated = self._as_bool(value.get("validated", global_validated), default=global_validated)
+                validated = self._as_bool(
+                    value.get("validated", global_validated),
+                    default=global_validated,
+                )
                 sources.append(AVOSource(name=source_name, url=str(url), validated=validated))
             return sources
 
