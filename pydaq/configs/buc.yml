@@ -60,7 +60,9 @@ instruments:
   49i:
     enabled: true
     serial_number: 49I-B3NAA-CM09350107
-    driver: Thermo49i
+    mac: n/a
+    id: 49
+    driver: 49i
     io: 
       kind: socket 
       host: 192.168.100.49

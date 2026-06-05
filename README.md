@@ -126,7 +126,13 @@ Dashboard endpoints, if enabled in config:
 - `GET /instruments`
 - `GET /latest`
 
-Example:
+Example (in a separate terminal):
+
+```bash
+curl http://localhost:8088/health
+curl http://localhost:8088/instruments
+curl http://localhost:8088/latest
+```
 
 - `http://localhost:8088/latest`
 
@@ -239,3 +245,22 @@ In the VS Code **autoDocstring** extension, set:
 ```json
 { "autoDocstring.docstringFormat": "google" }
 ```
+
+## Testing is tested with **pytest**. To run the test suite:   
+
+```bash
+pytest tests/
+```
+
+## Check if pydaq is running:
+
+```bash
+ps aux | grep pydaq
+```
+or
+```bash
+pgrep -fl pydaq
+```
+
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

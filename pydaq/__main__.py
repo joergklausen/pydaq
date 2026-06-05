@@ -8,6 +8,7 @@ Example:
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
 from pydaq.pydaq import Orchestrator
@@ -24,8 +25,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    Orchestrator(config_path=args.config).run_forever()
-
+    try:
+        Orchestrator(config_path=args.config).run_forever()
+    except Exception:
+        logging.getLogger("pydaq").exception("fatal pydaq crash")
+        raise
 
 if __name__ == "__main__":
     main()

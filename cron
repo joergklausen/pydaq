@@ -4,7 +4,7 @@
 
 # setup for BUC (for user: gaw)
 @reboot /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh pydaq/configs/buc.yml >> /home/gaw/Documents/git/pydaq/pydaq-buc-cron.log 2>&1
-*/5 * * * * /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh pydaq/configs/buc.yml > /dev/null 2>&1
+*/5 * * * * /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh pydaq/configs/buc.yml > /home/gaw/Documents/git/pydaq/pydaq-nrb-cron.log 2>&1
 
 # setup for NRB (for user: gaw)
 @reboot /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh /home/gaw/Documents/git/pydaq/pydaq/configs/nrb.yml >> /home/gaw/Documents/git/pydaq/pydaq-nrb-cron.log 2>&1

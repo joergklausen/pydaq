@@ -12,8 +12,7 @@ It is intended for use on the deployment host with the instrument actually reach
 
 Typical usage::
 
-    python -m pytest -vv -rs -s tests/test_49i_integration.py \
-      --station-config ./pydaq/configs/nrb.yml
+    python -m pytest -vv -rs -s tests/test_49i_integration.py --station-config ./pydaq/configs/buc.yml
 
 Notes
 -----

@@ -15,8 +15,14 @@ from pydaq.instruments.instrument import Instrument
 # Canonical config values. Keep this list intentionally small.
 _DRIVER_MAP: dict[str, str] = {
     "49i": "pydaq.instruments.thermo:Thermo49i",
+    "tei49i": "pydaq.instruments.thermo:Thermo49i",
+    "thermo49i": "pydaq.instruments.thermo:Thermo49i",
     "49c": "pydaq.instruments.thermo:Thermo49C",
+    "tei49c": "pydaq.instruments.thermo:Thermo49C",
+    "thermo49c": "pydaq.instruments.thermo:Thermo49C",
     "49cps": "pydaq.instruments.thermo:Thermo49CPS",
+    "tei49cps": "pydaq.instruments.thermo:Thermo49CPS",
+    "thermo49cps": "pydaq.instruments.thermo:Thermo49CPS",
     "fidas": "pydaq.instruments.fidas:FIDAS",
     "ae31": "pydaq.instruments.magee:AE31",
     "hmpascii": "pydaq.instruments.vaisala:HMPASCII",
