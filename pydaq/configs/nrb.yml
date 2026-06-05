@@ -302,15 +302,73 @@ instruments:
       command_sequence:
         - "SEND {id}"
 
-  avo:
+  avo-roof:
+    enabled: true
+    driver: avo
+    io:
+      kind: http
+      urls:
+        roof: https://device.iqair.com/v2/64b79227b6f7b1125b019970
+      validated: false
+      timeout_seconds: 30
+      retries: 3
+      backoff_seconds: 2
+      verify: true
+    schedule:
+      sample_every_seconds: 3600
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 60
+    output:
+      data_path: avo
+      staging_path: avo
+      remote_path: avo
+      remove_on_success: true
+    processing:
+      datasets:
+        - instant
+        - hourly
+        - daily
+        - monthly
+      append: true
+      remove_duplicates: true
+
+  avo-garden:
+    enabled: true
+    driver: avo
+    io:
+      kind: http
+      urls:
+        garden: https://device.iqair.com/v2/66b49848bc7616df52bd5100  # "name": "KMD SENSOR HQ",
+      validated: false
+      timeout_seconds: 30
+      retries: 3
+      backoff_seconds: 2
+      verify: true
+    schedule:
+      sample_every_seconds: 3600
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 60
+    output:
+      data_path: avo
+      staging_path: avo
+      remote_path: avo
+      remove_on_success: true
+    processing:
+      datasets:
+        - instant
+        - hourly
+        - daily
+        - monthly
+      append: true
+      remove_duplicates: true
+
+  avo-other:
     enabled: true
     driver: avo
     io:
       kind: http
       urls:
         mogogosiek: https://device.iqair.com/v2/64b78e3ed49ffdbbf25ce862
-        nairobi: https://device.iqair.com/v2/64b79227b6f7b1125b019970
-        nairobi-unep: https://device.iqair.com/v2/66b49848bc7616df52bd5100  # "name": "KMD SENSOR HQ",
         bomet: https://device.iqair.com/v2/64ad7a78e939e8f45b826839
       validated: false
       timeout_seconds: 30
