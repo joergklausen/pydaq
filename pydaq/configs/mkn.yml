@@ -137,30 +137,30 @@ instruments:
     init: {}
     processing: {}
 
-ae33:
-  enabled: true
-  driver: pydaq.instruments.magee.AE33
-  id: 169
-  serial_number: AE33-S10-01394
-  io:
-    kind: socket
-    host: 192.168.3.137
-    port: 8002
-    timeout_seconds: 0.5
-    sleep_seconds: 0.5
-  schedule:
-    sample_every_seconds: 60
-    rollover: hourly
-    rollover_at: ":00"
-    transmit_every_seconds: 3600
-    transmit_delay_seconds: 15
-    print_every_seconds: 30
-  output:
-    format: csv_zip
-    remote_path: ae33
-    remove_on_success: true
-  init:
-    get_config:
-      - HELLO
-    set_datetime: false
-  processing: {}    
+  ae33:
+    enabled: true
+    driver: pydaq.instruments.magee.AE33
+    id: 169
+    serial_number: AE33-S10-01394
+    io:
+      kind: socket
+      host: 192.168.3.137
+      port: 8002
+      timeout_seconds: 0.5
+      sleep_seconds: 0.5
+    schedule:
+      sample_every_seconds: 60
+      rollover: hourly
+      rollover_at: ":00"
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 15
+      print_every_seconds: 30
+    output:
+      format: csv_zip
+      remote_path: ae33
+      remove_on_success: true
+    init:
+      get_config:
+        - HELLO
+      set_datetime: false
+    processing: {}    
