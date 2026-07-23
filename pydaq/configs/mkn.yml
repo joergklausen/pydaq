@@ -13,7 +13,7 @@ paths:
 logging:
   file: pydaq.log
   level_console: info
-  level_file: error
+  level_file: warning
 
 main:
   loop_sleep_seconds: 1
@@ -35,19 +35,19 @@ transfer:
       parameters:
         endpoint_url: https://service.meteoswiss.ch/
         bucket: ch.meteoswiss.gawkenya
-        prefix: mkn
+        prefix: mkn/incoming
         region: eu-central-1
-        access_key: ~/.secrets/s3_access_key
-        secret_key: ~/.secrets/s3_secret_key
+        access_key: ~/.secrets/s3-access-key
+        secret_key: ~/.secrets/s3-secret-key
         verify: true
         addressing_style: path
     sftp:
       enabled: true
       parameters:
         host: sftp.meteoswiss.ch
-        user: gaw_mkn
-        remote_base: "."
-        key: ~/.ssh/private-open-ssh-4096-mkn.ppk
+        user: gaw_kenya
+        remote_base: "./mkn"
+        key: ~/.ssh/mkn-ed25519-20260508
         proxy:
             socks5:             # proxy url (leave empty if no proxy is used)
             port: 1080
@@ -61,10 +61,10 @@ network_monitor:
 instruments:
   49c:
     enabled: false
-    driver: thermo
+    driver: 49c
     io: 
       kind: serial
-      device: /dev/ttyusb0 
+      device: COM3 #/dev/ttyusb0 
       baudrate: 9600 
       bytesize: 8 
       parity: n
@@ -79,7 +79,7 @@ instruments:
       print_every_seconds: 30
     output:
       format: csv_zip
-      remote_path: tei49c
+      remote_path: 49c
       remove_on_success: true
     init: {}
     processing: {}
@@ -89,7 +89,7 @@ instruments:
     id: 49
     serial_number: 49I-B1NAA-12103910681
     enabled: true
-    driver: Thermo49i
+    driver: 49i
     io: 
       kind: socket 
       host: 192.168.3.190
@@ -105,43 +105,44 @@ instruments:
       print_every_seconds: 30
     output:
       format: csv_zip
-      remote_path: tei49i
+      remote_path: 49i
       remove_on_success: true
     init: {}
     processing: {}
 
-  fidas:
-    mac: 00-18-7D-2D-CA-84
-    serial_number: 6082
-    enabled: true
-    driver: FIDAS
-    io:
-      kind: udp
-      host: 0.0.0.0 #192.168.3.182
-      port: 56790
-      buffer_size: 8192
-      timeout: 0.5
-      sleep: 0.5
-    schedule:  
-      sample_every_seconds: 5             # How often should data be read from instrument?
-      aggregation_period_minutes: 1       # What aggregate of data should be stored?
-      rollover: hourly
-      rollover_at: ":00"
-      transmit_every_seconds: 3600
-      transmit_delay_seconds: 15
-      print_every_seconds: 30
-    output:
-      format: csv_zip
-      remote_path: fidas
-      remove_on_success: true
-    init: {}
-    processing: {}
+  # fidas:
+  #   mac: 00-18-7D-2D-CA-84
+  #   serial_number: 6082
+  #   enabled: true
+  #   driver: FIDAS
+  #   io:
+  #     kind: udp
+  #     host: 0.0.0.0 #192.168.3.182
+  #     port: 56790
+  #     buffer_size: 8192
+  #     timeout: 0.5
+  #     sleep: 0.5
+  #   schedule:  
+  #     sample_every_seconds: 5             # How often should data be read from instrument?
+  #     aggregation_period_minutes: 1       # What aggregate of data should be stored?
+  #     rollover: hourly
+  #     rollover_at: ":00"
+  #     transmit_every_seconds: 3600
+  #     transmit_delay_seconds: 15
+  #     print_every_seconds: 30
+  #   output:
+  #     format: csv_zip
+  #     remote_path: fidas
+  #     remove_on_success: true
+  #   init: {}
+  #   processing: {}
 
   ae33:
     enabled: true
-    driver: pydaq.instruments.magee.AE33
+    driver: ae33
     id: 169
     serial_number: AE33-S10-01394
+    mac: C4-00-AD-D8-0A-AC
     io:
       kind: socket
       host: 192.168.3.137
