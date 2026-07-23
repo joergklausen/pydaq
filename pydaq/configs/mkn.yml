@@ -45,7 +45,7 @@ transfer:
       enabled: true
       parameters:
         host: sftp.meteoswiss.ch
-        user: gaw_kenya
+        user: gaw_mkn
         remote_base: "./mkn"
         key: ~/.ssh/mkn-ed25519-20260508
         proxy:
@@ -110,32 +110,32 @@ instruments:
     init: {}
     processing: {}
 
-  # fidas:
-  #   mac: 00-18-7D-2D-CA-84
-  #   serial_number: 6082
-  #   enabled: true
-  #   driver: FIDAS
-  #   io:
-  #     kind: udp
-  #     host: 0.0.0.0 #192.168.3.182
-  #     port: 56790
-  #     buffer_size: 8192
-  #     timeout: 0.5
-  #     sleep: 0.5
-  #   schedule:  
-  #     sample_every_seconds: 5             # How often should data be read from instrument?
-  #     aggregation_period_minutes: 1       # What aggregate of data should be stored?
-  #     rollover: hourly
-  #     rollover_at: ":00"
-  #     transmit_every_seconds: 3600
-  #     transmit_delay_seconds: 15
-  #     print_every_seconds: 30
-  #   output:
-  #     format: csv_zip
-  #     remote_path: fidas
-  #     remove_on_success: true
-  #   init: {}
-  #   processing: {}
+  fidas:
+    mac: 00-18-7D-2D-CA-84
+    serial_number: 6082
+    enabled: true
+    driver: FIDAS
+    io:
+      kind: udp
+      host: 0.0.0.0 #192.168.3.182
+      port: 56790
+      buffer_size: 8192
+      timeout: 0.5
+      sleep: 0.5
+    schedule:  
+      sample_every_seconds: 5             # How often should data be read from instrument?
+      aggregation_period_minutes: 1       # What aggregate of data should be stored?
+      rollover: hourly
+      rollover_at: ":00"
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 15
+      print_every_seconds: 30
+    output:
+      format: csv_zip
+      remote_path: fidas
+      remove_on_success: true
+    init: {}
+    processing: {}
 
   ae33:
     enabled: true
