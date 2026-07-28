@@ -49,8 +49,8 @@ transfer:
         remote_base: "./mkn"
         key: ~/.ssh/mkn-ed25519-20260508
         proxy:
-            socks5:             # proxy url (leave empty if no proxy is used)
-            port: 1080
+          socks5:             # proxy url (leave empty if no proxy is used)
+          port: 1080
 
 network_monitor:
   enabled: true
@@ -59,17 +59,50 @@ network_monitor:
   log_unchanged_every_n: 0
 
 instruments:
+  meteo:
+    enabled: true
+    driver: meteo
+    io:
+      kind: sftp
+      purpose: meteo-pull
+      host: 192.168.3.157
+      port: 22
+      user: admin
+      key: ~/.ssh/mkn-ed25519-20260508
+      remote_dir: /home/moxa/data
+      pattern: "VRXA00.*"
+      known_hosts: ~/.ssh/known_hosts
+      accept_unknown_host_key: false
+      connect_timeout_seconds: 10
+      banner_timeout_seconds: 30
+      auth_timeout_seconds: 20
+      min_remote_age_seconds: 60
+      retries: 2
+      backoff_seconds: 2
+    schedule:
+      sample_every_seconds: 600
+      rollover: none
+      transmit_every_seconds: 600
+      transmit_delay_seconds: 15
+      print_every_seconds: 600
+    output:
+      format: files
+      remote_path: meteo
+      remove_on_success: true
+    init: {}
+    processing: {}
+
   49c:
     enabled: false
     driver: 49c
-    io: 
+    io:
       kind: serial
-      device: COM3 #/dev/ttyusb0 
-      baudrate: 9600 
-      bytesize: 8 
-      parity: n
+      device: COM3 #/dev/ttyusb0
+      baudrate: 9600
+      bytesize: 8
+      parity: N
       stopbits: 1
-      timeout_seconds: 1 
+      timeout_seconds: 1
     schedule:
       sample_every_seconds: 60
       rollover: hourly
@@ -90,8 +123,8 @@ instruments:
     serial_number: 49I-B1NAA-12103910681
     enabled: true
     driver: 49i
-    io: 
-      kind: socket 
+    io:
+      kind: socket
       host: 192.168.3.190
       port: 9880
       timeout: 5
