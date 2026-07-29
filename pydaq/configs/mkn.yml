@@ -171,7 +171,7 @@ instruments:
     processing: {}
 
   ae33:
-    enabled: true
+    enabled: false
     driver: ae33
     id: 169
     serial_number: AE33-S10-01394
