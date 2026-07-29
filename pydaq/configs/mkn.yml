@@ -46,7 +46,7 @@ transfer:
       parameters:
         host: sftp.meteoswiss.ch
         user: gaw_mkn
-        remote_base: "./mkn"
+        remote_base: "./incoming"
         key: ~/.ssh/mkn-ed25519-20260508
         proxy:
           socks5:             # proxy url (leave empty if no proxy is used)
@@ -60,7 +60,7 @@ network_monitor:
 
 instruments:
   meteo:
-    enabled: true
+    enabled: false
     driver: meteo
     io:
       kind: sftp
@@ -93,7 +93,8 @@ instruments:
     processing: {}
 
   49c:
-    enabled: false
+    id: 49
+    enabled: true
     driver: 49c
     io:
       kind: serial
@@ -171,7 +172,7 @@ instruments:
     processing: {}
 
   ae33:
-    enabled: false
+    enabled: true
     driver: ae33
     id: 169
     serial_number: AE33-S10-01394

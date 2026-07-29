@@ -135,6 +135,12 @@ class HourlyCsvWriter:
         elif isinstance(dt_value, str):
             parsed = parse_isoish(dt_value)
             if parsed is None:
+                if self.logger:
+                    self.logger.error(
+                        "record skipped: invalid datetime field=%s value=%r",
+                        self.config.datetime_field,
+                        dt_value,
+                    )
                 return
             dtm = parsed
         else:

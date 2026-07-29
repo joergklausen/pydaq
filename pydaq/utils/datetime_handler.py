@@ -11,35 +11,42 @@ from typing import Optional
 
 
 def parse_isoish(text: str) -> Optional[datetime]:
-    """Parse common timestamp strings into a ``datetime``.
-
-    Supported examples (best-effort):
-    - ``2025-01-01 00:00:00``
-    - ``2025-01-01T00:00:00``
-    - ``2025-01-01T00:00:00Z``
-    - ``2025-01-01 00:00:00Z``
-
-    Returns:
-        Parsed datetime, or ``None`` if parsing fails.
-    """
+    """Parse common instrument timestamp strings into UTC datetimes."""
     if not text:
         return None
 
-    s = text.strip()
+    value = text.strip()
+
     try:
-        if s.endswith("Z"):
-            s2 = s[:-1].replace(" ", "T") + "+00:00"
-            return datetime.fromisoformat(s2)
+        if value.endswith("Z"):
+            normalized = value[:-1].replace(" ", "T") + "+00:00"
+            return datetime.fromisoformat(normalized)
 
-        if "T" in s and ("+" in s or s.count(":") >= 2):
-            return datetime.fromisoformat(s)
+        # ISO timestamps, including timestamps with offsets.
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        except ValueError:
+            pass
 
-        if " " in s and s.count(":") >= 2 and "-" in s:
-            return datetime.strptime(s, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        formats = (
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%dT%H:%M:%S",
+            "%m/%d/%Y %I:%M:%S %p",  # AE33: 7/29/2026 6:06:00 AM
+            "%m/%d/%Y %H:%M:%S",
+        )
 
-        if "T" in s and s.count(":") >= 2 and "-" in s:
-            return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
-    except Exception:
+        for timestamp_format in formats:
+            try:
+                return datetime.strptime(value, timestamp_format).replace(
+                    tzinfo=timezone.utc
+                )
+            except ValueError:
+                continue
+
+    except (TypeError, ValueError, OverflowError):
         return None
 
     return None

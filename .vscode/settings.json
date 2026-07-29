@@ -1,7 +1,11 @@
 {
-    "python.testing.pytestArgs": [
-        "tests"
-    ],
+    "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestArgs": [
+        "tests",
+        "--run-integration",
+        "--station-config=pydaq/configs/mkn.yml",
+        "-rs",
+        "-s"
+    ]
 }

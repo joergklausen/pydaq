@@ -197,14 +197,28 @@ class Thermo49Base(Instrument):
 
     def _resolve_instrument_id_byte(self) -> bytes:
         processing_cfg = self._params_section("processing")
-        raw_id = processing_cfg.get("id", (self.parameters or {}).get("id", 0))
+        raw_id = processing_cfg.get("id", (self.parameters or {}).get("id"))
+
+        if raw_id is None:
+            raise ValueError(
+                f"[{self.name}] Thermo instrument configuration requires "
+                "'id' in the range 0..127"
+            )
+
         try:
             device_id = int(raw_id)
-        except Exception:
-            device_id = 0
-        if not (0 <= device_id <= 127):
-            self.logger.warning("Invalid Thermo id=%s; expected 0..127 (using 49).", raw_id)
-            device_id = 49
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"[{self.name}] Invalid Thermo instrument id={raw_id!r}; "
+                "expected an integer in the range 0..127"
+            ) from exc
+
+        if not 0 <= device_id <= 127:
+            raise ValueError(
+                f"[{self.name}] Invalid Thermo instrument id={device_id}; "
+                "expected 0..127"
+            )
+
         return bytes([device_id + 128])
 
     def _send(self, cmd: str) -> str:

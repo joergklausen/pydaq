@@ -2,24 +2,18 @@ from __future__ import annotations
 
 """Live integration test for a configured Thermo 49i instrument.
 
-This test follows the same instantiation path used by ``pydaq.py``:
-- load the station YAML via ``load_config``
-- resolve the driver with ``get_driver_class``
-- build the instrument instance with the same constructor arguments as the orchestrator
-- call ``initialize()`` and then one live sample through ``append_record()``
+The test follows the production construction path closely:
 
-It is intended for use on the deployment host with the instrument actually reachable.
+- load the station YAML with ``load_config``;
+- resolve the driver through the explicit driver registry;
+- pass the complete ``InstrumentConfig`` mapping to the driver;
+- initialize the instrument and collect one live sample.
 
-Typical usage::
+Run explicitly on a host that can reach the configured analyzer:
 
-    python -m pytest -vv -rs -s tests/test_49i_integration.py --station-config ./pydaq/configs/buc.yml
-
-Notes
------
-- The test skips cleanly when no config is supplied or when the 49i is disabled.
-- It stubs out file writing so only the live connection + parsing path is exercised.
-- If the instrument is unreachable or returns no valid sample, the test fails with a
-  targeted message.
+    python -m pytest -vv -rs -s tests/test_49i_integration.py \\
+        --run-integration \\
+        --station-config pydaq/configs/mkn.yml
 """
 
 from dataclasses import asdict
@@ -27,7 +21,7 @@ import logging
 import os
 from pathlib import Path
 import sys
-from typing import Any
+from typing import Any, Iterator
 
 import pytest
 
@@ -36,14 +30,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import pydaq.instruments.instrument as instrument_mod
-from pydaq.instruments.instrument import get_driver_class
+from pydaq.instruments.registry import get_driver_class
 from pydaq.utils.config_handler import load_config
 
 
 class DummyWriter:
-    """Minimal writer stub so the live test avoids filesystem side effects."""
+    """Minimal writer stub that avoids persistent file output."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self.appended: list[dict[str, Any]] = []
         self.finalize_calls = 0
         self.stage_calls = 0
@@ -59,23 +53,29 @@ class DummyWriter:
 
 
 def _resolve_station_config(pytestconfig: pytest.Config) -> Path:
-    """Resolve the station config path from pytest option, env var, or a default path."""
-    option_value = None
+    """Resolve the station config from pytest, the environment, or mkn.yml."""
+    option_value: str | None
     try:
-        option_value = pytestconfig.getoption("station_config")
-    except Exception:
+        raw_option = pytestconfig.getoption("station_config")
+        option_value = str(raw_option) if raw_option else None
+    except (ValueError, AttributeError):
         option_value = None
 
     raw = option_value or os.environ.get("PYDAQ_STATION_CONFIG")
     if not raw:
         default_path = ROOT / "pydaq" / "configs" / "mkn.yml"
         if default_path.exists():
-            return default_path
-        pytest.skip("No station config supplied. Use --station-config or PYDAQ_STATION_CONFIG.")
+            return default_path.resolve()
+        pytest.skip(
+            "No station config supplied. Use --station-config or "
+            "PYDAQ_STATION_CONFIG."
+        )
 
     path = Path(raw).expanduser()
     if not path.is_absolute():
-        path = (ROOT / path).resolve()
+        path = ROOT / path
+    path = path.resolve()
+
     if not path.exists():
         pytest.skip(f"Station config not found: {path}")
     return path
@@ -86,8 +86,8 @@ def live_49i_driver(
     monkeypatch: pytest.MonkeyPatch,
     pytestconfig: pytest.Config,
     tmp_path: Path,
-):
-    """Instantiate the configured 49i exactly like the orchestrator does."""
+) -> Iterator[Any]:
+    """Instantiate the configured 49i using production-equivalent parameters."""
     monkeypatch.setattr(instrument_mod, "HourlyCsvWriter", DummyWriter)
 
     config_path = _resolve_station_config(pytestconfig)
@@ -109,12 +109,9 @@ def live_49i_driver(
     logger = logging.getLogger("pytest.49i.integration")
     logger.setLevel(logging.INFO)
 
-    driver_parameters = {
-        "io": instrument_config.io,
-        "init": instrument_config.init,
-        "processing": instrument_config.processing,
-        "output": asdict(instrument_config.output),
-    }
+    # Important: do not rebuild a partial parameter mapping here.
+    # The Thermo address ``id`` is a top-level InstrumentConfig field.
+    driver_parameters = asdict(instrument_config)
 
     instrument = instrument_class(
         name=instrument_config.name,
@@ -129,15 +126,16 @@ def live_49i_driver(
     yield instrument
 
     try:
-        if hasattr(instrument, "_line"):
-            instrument._line.close()  # type: ignore[attr-defined]
+        line = getattr(instrument, "_line", None)
+        if line is not None:
+            line.close()
     except Exception:
         pass
 
 
 @pytest.mark.integration
-def test_49i_integration_reads_live_record(live_49i_driver) -> None:
-    """Connect to the configured 49i and collect one live sample via append_record()."""
+def test_49i_integration_reads_live_record(live_49i_driver: Any) -> None:
+    """Collect and validate one live Thermo 49i record."""
     live_49i_driver.initialize()
 
     writer = live_49i_driver.writer
@@ -146,8 +144,9 @@ def test_49i_integration_reads_live_record(live_49i_driver) -> None:
     live_49i_driver.append_record()
 
     assert len(writer.appended) == 1, (
-        "No valid record was written by Thermo 49i. "
-        "Check host/port connectivity, instrument responsiveness, and the configured sample command."
+        "No valid record was written by Thermo 49i. Check host/port "
+        "connectivity, instrument responsiveness, the configured instrument "
+        "id, and the sample command."
     )
 
     row = writer.appended[0]
@@ -155,5 +154,4 @@ def test_49i_integration_reads_live_record(live_49i_driver) -> None:
     assert "o3" in row, f"Record missing o3 field: {row!r}"
     assert row["o3"] is not None, f"Record contains null o3 value: {row!r}"
     assert isinstance(row["o3"], (int, float)), f"o3 is not numeric: {row!r}"
-
     assert live_49i_driver.state.latest == row
