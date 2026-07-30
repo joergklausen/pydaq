@@ -89,6 +89,8 @@ class Orchestrator:
             file_name=self.application_config.logging.file,
             level_console=self.application_config.logging.level_console,
             level_file=self.application_config.logging.level_file,
+            max_bytes=self.application_config.logging.max_bytes,
+            backup_count=self.application_config.logging.backup_count,
         )
         self.logger.info("=== PYDAQ started (station=%s config=%s)", self.application_config.station.id, self.config_path)
 

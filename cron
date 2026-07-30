@@ -1,11 +1,25 @@
-# generic setup. NB: $USER should be replaced with actual concrete paths
-@reboot /bin/bash /home/$USER/Documents/git/pydaq/pydaq.sh >> /home/$USER/Documents/git/pydaq/pydaq-cron.log 2>&1
-*/5 * * * * /bin/bash /home/$USER/Documents/git/pydaq/pydaq.sh  > /dev/null 2>&1
+# generic setup. 
+# $USER should be replaced with actual concrete paths
+# $FACILTY should be replaced with actual concrete facility acronym
+@reboot /bin/bash /home/$USER/Documents/git/pydaq/pydaq.sh \
+  /home/$USER/Documents/git/pydaq/configs/$FACILTY.yml \
+  >/dev/null 2>&1
+*/5 * * * * /bin/bash /home/$USER/Documents/git/pydaq/pydaq.sh \
+  /home/gaw/Documents/git/pydaq/pydaq/configs/$FACILTY.yml \
+  > /dev/null 2>&1
 
 # setup for BUC (for user: gaw)
-@reboot /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh pydaq/configs/buc.yml >> /home/gaw/Documents/git/pydaq/pydaq-buc-cron.log 2>&1
-*/5 * * * * /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh pydaq/configs/buc.yml > /home/gaw/Documents/git/pydaq/pydaq-nrb-cron.log 2>&1
+@reboot /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh \
+  /home/gaw/Documents/git/pydaq/pydaq/configs/buc.yml \
+  >/dev/null 2>&1
+*/5 * * * * /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh \
+  /home/gaw/Documents/git/pydaq/pydaq/configs/buc.yml \
+  >/dev/null 2>&1
 
 # setup for NRB (for user: gaw)
-@reboot /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh /home/gaw/Documents/git/pydaq/pydaq/configs/nrb.yml >> /home/gaw/Documents/git/pydaq/pydaq-nrb-cron.log 2>&1
-*/5 * * * * /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh /home/gaw/Documents/git/pydaq/pydaq/configs/nrb.yml >> /home/gaw/Documents/git/pydaq/pydaq-nrb-cron.log 2>&1
+@reboot /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh \
+  /home/gaw/Documents/git/pydaq/pydaq/configs/nrb.yml \
+  >/dev/null 2>&1
+*/5 * * * * /bin/bash /home/gaw/Documents/git/pydaq/pydaq.sh \
+  /home/gaw/Documents/git/pydaq/pydaq/configs/nrb.yml \
+  >/dev/null 2>&1

@@ -13,7 +13,9 @@ paths:
 logging:
   file: pydaq.log
   level_console: info
-  level_file: error
+  level_file: warning
+  max_bytes: 2_000_000
+  backup_count: 7
 
 main:
   loop_sleep_seconds: 1

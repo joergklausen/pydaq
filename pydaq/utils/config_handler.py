@@ -62,6 +62,8 @@ class LoggingConfig:
     level_console: str = "info"
     level_file: str = "info"
     file: str = "pydaq.log"
+    max_bytes: int = 5_000_000
+    backup_count: int = 5    
 
 
 @dataclass(frozen=True)
@@ -178,12 +180,22 @@ def _parse_paths_config(raw: Dict[str, Any]) -> PathsConfig:
 
 
 def _parse_logging_config(raw: Dict[str, Any]) -> LoggingConfig:
+    max_bytes = int(raw.get("max_bytes", 5_000_000))
+    backup_count = int(raw.get("backup_count", 5))
+
+    if max_bytes < 0:
+        raise ConfigError("logging.max_bytes must be >= 0")
+
+    if backup_count < 0:
+        raise ConfigError("logging.backup_count must be >= 0")
+
     return LoggingConfig(
         level_console=str(raw.get("level_console", "info")).lower(),
         level_file=str(raw.get("level_file", "info")).lower(),
         file=str(raw.get("file", "pydaq.log")),
+        max_bytes=max_bytes,
+        backup_count=backup_count,
     )
-
 
 
 def _parse_main_config(raw: Dict[str, Any]) -> MainConfig:
