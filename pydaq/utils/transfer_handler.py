@@ -419,8 +419,36 @@ class TransferHandler:
 
         # Outbox is intended to be flat. Ignore subdirectories.
         files = sorted([p for p in base.glob("*") if p.is_file()])
+
+        uploaded = 0
+        failed = 0
+
         for file_path in files:
-            self._transmit_one(file_path, remote_path, remove_on_success)
+            results = self._transmit_one(
+                file_path,
+                remote_path,
+                remove_on_success,
+            )
+
+            overall_success = (
+                all(result.ok for result in results)
+                if self.require_all_targets
+                else any(result.ok for result in results)
+            )
+
+            if overall_success:
+                uploaded += 1
+            else:
+                failed += 1
+
+        if self.logger and files:
+            self.logger.info(
+                "[transfer] scan complete instrument=%s uploaded=%d failed=%d",
+                instrument_name,
+                uploaded,
+                failed,
+            )
+
 
     def transmit_all(self, instrument_remote_path_map: Dict[str, str], remove_on_success_map: Dict[str, bool]) -> None:
         """Transmit all files for all instruments."""
@@ -454,7 +482,7 @@ class TransferHandler:
             if remove_on_success:
                 local_path.unlink(missing_ok=True)
             if self.logger:
-                self.logger.info(
+                self.logger.debug(
                     "[transfer] %s -> %s (%s)",
                     local_path.name,
                     remote_relative_path,

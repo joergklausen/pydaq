@@ -339,7 +339,7 @@ class Orchestrator:
 
         state = instrument.state
         if state.latest:
-            self.logger.info("[%s] latest=%s", instrument_name, state.latest)
+            self.logger.debug("[%s] latest=%s", instrument_name, state.latest)
             return
 
         if state.last_error:
