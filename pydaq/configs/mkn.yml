@@ -42,7 +42,7 @@ transfer:
         verify: true
         addressing_style: path
     sftp:
-      enabled: true
+      enabled: false
       parameters:
         host: sftp.meteoswiss.ch
         user: gaw_mkn
@@ -198,4 +198,76 @@ instruments:
       get_config:
         - HELLO
       set_datetime: false
-    processing: {}    
+    processing: {}
+
+  hmp110-inlet:
+    enabled: true
+    driver: hmpascii
+    id: 3
+    type: Vaisala HMP110 C15A0C3A0
+    serial_number: U2110086  # aerosol inlet manyfold
+    io:
+      # kind: socket
+      # host: 192.168.0.100
+      # port: 5004
+      kind: serial
+      port: COM1
+      baudrate: 19200 
+      bytesize: 8 
+      parity: N
+      stopbits: 1
+      timeout_seconds: 1 
+      timeout: 5.0
+      idle_timeout: 0.25
+      sleep: 0.1
+    schedule:
+      sample_every_seconds: 5
+      aggregation_period_minutes: 1
+      rollover: hourly
+      rollover_at: ":00"
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 15
+      print_every_seconds: 30
+    output:
+      format: csv_zip
+      remote_path: hmp110-inlet
+      remove_on_success: true
+    init:
+      command_sequence:
+        - "SEND {id}"
+
+  hmp110-ae33:
+    enabled: true
+    driver: hmpascii
+    id: 4
+    type: Vaisala HMP110 C15A0C3A0
+    serial_number: U2110081  # inlet AE33
+    io:
+      # kind: socket
+      # host: 192.168.0.100
+      # port: 5004
+      kind: serial
+      port: COM1
+      baudrate: 19200 
+      bytesize: 8 
+      parity: N
+      stopbits: 1
+      timeout_seconds: 1 
+      timeout: 5.0
+      idle_timeout: 0.25
+      sleep: 0.1
+    schedule:
+      sample_every_seconds: 5
+      aggregation_period_minutes: 1
+      rollover: hourly
+      rollover_at: ":00"
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 15
+      print_every_seconds: 30
+    output:
+      format: csv_zip
+      remote_path: hmp110-ae33
+      remove_on_success: true
+    init:
+      command_sequence:
+        - "SEND {id}"
