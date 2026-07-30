@@ -317,9 +317,9 @@ instruments:
       transmit_every_seconds: 3600
       transmit_delay_seconds: 60
     output:
-      data_path: avo
-      staging_path: avo
-      remote_path: avo
+      data_path: avo-roof
+      staging_path: avo-roof
+      remote_path: avo-roof
       remove_on_success: true
     processing:
       datasets:
@@ -347,9 +347,9 @@ instruments:
       transmit_every_seconds: 3600
       transmit_delay_seconds: 60
     output:
-      data_path: avo
-      staging_path: avo
-      remote_path: avo
+      data_path: avo-garden
+      staging_path: avo-garden
+      remote_path: avo-garden
       remove_on_success: true
     processing:
       datasets:
@@ -360,14 +360,13 @@ instruments:
       append: true
       remove_duplicates: true
 
-  avo-other:
+  avo-huduma:
     enabled: true
     driver: avo
     io:
       kind: http
       urls:
-        mogogosiek: https://device.iqair.com/v2/64b78e3ed49ffdbbf25ce862
-        bomet: https://device.iqair.com/v2/64ad7a78e939e8f45b826839
+        huduma: https://device.iqair.com/v2/64ad7a78e939e8f45b826839
       validated: false
       timeout_seconds: 30
       retries: 3
@@ -378,9 +377,39 @@ instruments:
       transmit_every_seconds: 3600
       transmit_delay_seconds: 60
     output:
-      data_path: avo
-      staging_path: avo
-      remote_path: avo
+      data_path: avo-huduma
+      staging_path: avo-huduma
+      remote_path: avo-huduma
+      remove_on_success: true
+    processing:
+      datasets:
+        - instant
+        - hourly
+        - daily
+        - monthly
+      append: true
+      remove_duplicates: true
+
+  avo-mogogosiek:
+    enabled: true
+    driver: avo
+    io:
+      kind: http
+      urls:
+        mogogosiek: https://device.iqair.com/v2/64b78e3ed49ffdbbf25ce862
+      validated: false
+      timeout_seconds: 30
+      retries: 3
+      backoff_seconds: 2
+      verify: true
+    schedule:
+      sample_every_seconds: 3600
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 60
+    output:
+      data_path: avo-mogogosiek
+      staging_path: avo-mogigosiek
+      remote_path: avo-mogogosiek
       remove_on_success: true
     processing:
       datasets:
