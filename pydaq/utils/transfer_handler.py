@@ -17,9 +17,11 @@ from __future__ import annotations
 
 import random
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Dict, List, Optional, Union
+from threading import Lock
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 
 @dataclass(frozen=True)
@@ -146,19 +148,29 @@ class SftpTarget(TransferTarget):
         self.key = key
         self.port = port
 
-    def upload(self, local_path: Path, remote_relative_path: str) -> TransferResult:
-        """Upload using SFTP.
+    def _remote_path(self, remote_relative_path: str) -> str:
+        """Return the complete POSIX path on the SFTP server."""
+        return (
+            PurePosixPath(self.remote_base) / remote_relative_path
+        ).as_posix()
 
-        Returns:
-            TransferResult with remote path in ``detail`` on success.
+    @contextmanager
+    def _sftp_session(self) -> Iterator[Any]:
+        """Open an SSH/SFTP session and always close allocated resources.
+
+        Cleanup also occurs if connecting, opening SFTP, creating directories,
+        uploading, verifying, or deleting raises an exception.
         """
         try:
             import importlib
-            paramiko = importlib.import_module("paramiko")
-        except Exception as e:
-            return TransferResult(False, self.kind, f"paramiko not available: {e}")
 
-        remote_path = (PurePosixPath(self.remote_base) / remote_relative_path).as_posix()
+            paramiko = importlib.import_module("paramiko")
+        except Exception as exc:
+            raise RuntimeError(f"paramiko not available: {exc}") from exc
+
+        client = None
+        sftp = None
+
         try:
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -166,84 +178,101 @@ class SftpTarget(TransferTarget):
                 hostname=self.host,
                 port=self.port,
                 username=self.user,
-                key_filename=str(Path(self.key).expanduser()) if self.key else None,
+                key_filename=(
+                    str(Path(self.key).expanduser())
+                    if self.key
+                    else None
+                ),
                 timeout=20,
             )
             sftp = client.open_sftp()
-
-            # Ensure remote directories exist.
-            pp = PurePosixPath(remote_path)
-            cur = PurePosixPath("/") if remote_path.startswith("/") else PurePosixPath(".")
-            for part in pp.parts[:-1]:
-                if part in ("/", "."):
-                    continue
-                cur = cur / part
+            yield sftp
+        finally:
+            # SFTP uses the SSH transport, so close it first.
+            if sftp is not None:
                 try:
-                    sftp.stat(cur.as_posix())
-                except IOError:
-                    try:
-                        sftp.mkdir(cur.as_posix())
-                    except Exception:
-                        pass
+                    sftp.close()
+                except Exception:
+                    pass
 
-            sftp.put(local_path.as_posix(), remote_path)
-            sftp.close()
-            client.close()
-            return TransferResult(True, self.kind, remote_path)
-        except Exception as e:
-            return TransferResult(False, self.kind, str(e))
+            # ``client`` may exist even when connect() or open_sftp() failed.
+            if client is not None:
+                try:
+                    client.close()
+                except Exception:
+                    pass
 
-    def _remote_path(self, remote_relative_path: str) -> str:
-        return (PurePosixPath(self.remote_base) / remote_relative_path).as_posix()
-
-    def _open_sftp(self):
-        try:
-            import importlib
-            paramiko = importlib.import_module("paramiko")
-        except Exception as e:
-            raise RuntimeError(f"paramiko not available: {e}") from e
-
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(
-            hostname=self.host,
-            port=self.port,
-            username=self.user,
-            key_filename=str(Path(self.key).expanduser()) if self.key else None,
-            timeout=20,
+    @staticmethod
+    def _ensure_remote_parent(sftp: Any, remote_path: str) -> None:
+        """Create missing remote parent directories."""
+        path = PurePosixPath(remote_path)
+        current = (
+            PurePosixPath("/")
+            if path.is_absolute()
+            else PurePosixPath(".")
         )
-        sftp = client.open_sftp()
-        return client, sftp
+
+        for part in path.parts[:-1]:
+            if part in {"/", "."}:
+                continue
+
+            current = current / part
+            directory = current.as_posix()
+
+            try:
+                sftp.stat(directory)
+                continue
+            except OSError:
+                pass
+
+            try:
+                sftp.mkdir(directory)
+            except OSError as mkdir_error:
+                # A concurrent process may have created it between stat/mkdir.
+                try:
+                    sftp.stat(directory)
+                except OSError:
+                    raise RuntimeError(
+                        f"could not create remote directory {directory!r}"
+                    ) from mkdir_error
+
+    def upload(
+        self,
+        local_path: Path,
+        remote_relative_path: str,
+    ) -> TransferResult:
+        """Upload one file using an automatically closed SFTP session."""
+        remote_path = self._remote_path(remote_relative_path)
+
+        try:
+            with self._sftp_session() as sftp:
+                self._ensure_remote_parent(sftp, remote_path)
+                sftp.put(local_path.as_posix(), remote_path)
+            return TransferResult(True, self.kind, remote_path)
+        except Exception as exc:
+            return TransferResult(False, self.kind, str(exc))
 
     def exists(self, remote_relative_path: str) -> TransferResult:
+        """Check whether a remote file exists."""
         remote_path = self._remote_path(remote_relative_path)
+
         try:
-            client, sftp = self._open_sftp()
-            try:
+            with self._sftp_session() as sftp:
                 sftp.stat(remote_path)
-                return TransferResult(True, self.kind, remote_path)
-            finally:
-                try:
-                    sftp.close()
-                finally:
-                    client.close()
-        except Exception as e:
-            return TransferResult(False, self.kind, str(e))
+            return TransferResult(True, self.kind, remote_path)
+        except Exception as exc:
+            return TransferResult(False, self.kind, str(exc))
 
     def delete(self, remote_relative_path: str) -> TransferResult:
+        """Delete a remote file."""
         remote_path = self._remote_path(remote_relative_path)
+
         try:
-            client, sftp = self._open_sftp()
-            try:
+            with self._sftp_session() as sftp:
                 sftp.remove(remote_path)
-                return TransferResult(True, self.kind, remote_path)
-            finally:
-                try:
-                    sftp.close()
-                finally:
-                    client.close()
-        except Exception as e:
-            return TransferResult(False, self.kind, str(e))
+            return TransferResult(True, self.kind, remote_path)
+        except Exception as exc:
+            return TransferResult(False, self.kind, str(exc))
 
 
 class S3Target(TransferTarget):
@@ -372,8 +401,19 @@ class S3Target(TransferTarget):
             return TransferResult(False, self.kind, str(e))
 
 
+# One lock is shared by all handler instances in the process. This also
+# protects against overlap if a YAML reload replaces ``TransferHandler`` while
+# an older scan is still completing.
+_TRANSFER_SCAN_LOCK = Lock()
+
+
 class TransferHandler:
-    """Scan outbox folders and upload files to targets."""
+    """Scan outbox folders and upload files to targets.
+
+    All public scan entry points share a non-blocking process-wide lock. Thus a
+    global scan, per-instrument scan, or startup self-test can never use the
+    same outbox/transfer targets concurrently.
+    """
 
     def __init__(
         self,
@@ -389,13 +429,13 @@ class TransferHandler:
         """Create a transfer manager.
 
         Args:
-            outbox_root: Root directory containing per-instrument outboxes (flat per instrument).
-            targets: List of upload targets.
-            require_all_targets: If True, treat upload as success only if *all* targets succeed.
-            retries: Number of retry attempts per target.
-            backoff_seconds: Base backoff in seconds.
-            max_backoff_seconds: Maximum backoff in seconds.
-            logger: Optional logger for messages.
+            outbox_root: Root containing flat per-instrument outboxes.
+            targets: Upload targets.
+            require_all_targets: Require every target to succeed.
+            retries: Attempts per target.
+            backoff_seconds: Base retry delay.
+            max_backoff_seconds: Maximum retry delay.
+            logger: Optional logger.
         """
         self.outbox_root = outbox_root
         self.targets = targets
@@ -405,21 +445,111 @@ class TransferHandler:
         self.max_backoff_seconds = max_backoff_seconds
         self.logger = logger
 
-    def transmit_instrument(self, instrument_name: str, remote_path: str, remove_on_success: bool = True) -> None:
-        """Transmit all files currently in an instrument outbox.
+    def _try_start_scan(
+        self,
+        scope: str,
+        *,
+        blocking: bool = False,
+    ) -> bool:
+        """Acquire the process-wide transfer lock.
 
-        Args:
-            instrument_name: Instrument key (directory under outbox root).
-            remote_path: Remote relative directory/prefix (typically instrument_name).
-            remove_on_success: If True, delete outbox file after successful upload.
+        Per-instrument jobs use non-blocking acquisition and are skipped when a
+        broader scan is active. The global scan uses blocking acquisition so it
+        always runs after any active per-instrument scan and cannot starve.
         """
-        base = self.outbox_root / instrument_name
-        if not base.exists():
+        acquired = _TRANSFER_SCAN_LOCK.acquire(blocking=blocking)
+        if not acquired and self.logger:
+            self.logger.debug(
+                "[transfer] scan skipped scope=%s "
+                "reason=another transfer scan is active",
+                scope,
+            )
+        return acquired
+
+    @staticmethod
+    def _finish_scan() -> None:
+        """Release the process-wide transfer lock."""
+        _TRANSFER_SCAN_LOCK.release()
+
+    def transmit_instrument(
+        self,
+        instrument_name: str,
+        remote_path: str,
+        remove_on_success: bool = True,
+    ) -> None:
+        """Transmit one instrument outbox unless another scan is active."""
+        if not self._try_start_scan(f"instrument:{instrument_name}"):
             return
 
-        # Outbox is intended to be flat. Ignore subdirectories.
-        files = sorted([p for p in base.glob("*") if p.is_file()])
+        try:
+            scanned, uploaded, failed = self._transmit_instrument_unlocked(
+                instrument_name,
+                remote_path,
+                remove_on_success,
+            )
+            if self.logger and scanned:
+                self.logger.info(
+                    "[transfer] scan complete "
+                    "instrument=%s scanned=%d uploaded=%d failed=%d",
+                    instrument_name,
+                    scanned,
+                    uploaded,
+                    failed,
+                )
+        finally:
+            self._finish_scan()
 
+    def transmit_all(
+        self,
+        instrument_remote_path_map: Dict[str, str],
+        remove_on_success_map: Dict[str, bool],
+    ) -> None:
+        """Transmit all instrument outboxes as one serialized scan."""
+        if not self._try_start_scan("all", blocking=True):
+            return
+
+        try:
+            scanned_total = 0
+            uploaded_total = 0
+            failed_total = 0
+
+            for instrument_name, remote_path in (
+                instrument_remote_path_map.items()
+            ):
+                scanned, uploaded, failed = (
+                    self._transmit_instrument_unlocked(
+                        instrument_name,
+                        remote_path,
+                        remove_on_success_map.get(instrument_name, True),
+                    )
+                )
+                scanned_total += scanned
+                uploaded_total += uploaded
+                failed_total += failed
+
+            if self.logger and scanned_total:
+                self.logger.info(
+                    "[transfer] scan complete "
+                    "scope=all scanned=%d uploaded=%d failed=%d",
+                    scanned_total,
+                    uploaded_total,
+                    failed_total,
+                )
+        finally:
+            self._finish_scan()
+
+    def _transmit_instrument_unlocked(
+        self,
+        instrument_name: str,
+        remote_path: str,
+        remove_on_success: bool,
+    ) -> tuple[int, int, int]:
+        """Transmit one outbox while the caller owns the transfer lock."""
+        base = self.outbox_root / instrument_name
+        if not base.exists():
+            return 0, 0, 0
+
+        files = sorted(path for path in base.glob("*") if path.is_file())
         uploaded = 0
         failed = 0
 
@@ -429,79 +559,106 @@ class TransferHandler:
                 remote_path,
                 remove_on_success,
             )
-
-            overall_success = (
-                all(result.ok for result in results)
-                if self.require_all_targets
-                else any(result.ok for result in results)
-            )
-
-            if overall_success:
+            if self._overall_success(results):
                 uploaded += 1
             else:
                 failed += 1
 
-        if self.logger and files:
-            self.logger.info(
-                "[transfer] scan complete instrument=%s uploaded=%d failed=%d",
-                instrument_name,
-                uploaded,
-                failed,
-            )
+        return len(files), uploaded, failed
 
+    def _overall_success(self, results: List[TransferResult]) -> bool:
+        """Evaluate a list of per-target results."""
+        if not results:
+            return False
+        if self.require_all_targets:
+            return all(result.ok for result in results)
+        return any(result.ok for result in results)
 
-    def transmit_all(self, instrument_remote_path_map: Dict[str, str], remove_on_success_map: Dict[str, bool]) -> None:
-        """Transmit all files for all instruments."""
-        for instrument_name, remote_path in instrument_remote_path_map.items():
-            self.transmit_instrument(
-                instrument_name,
-                remote_path,
-                remove_on_success=remove_on_success_map.get(instrument_name, True),
-            )
-
-    def _transmit_one(self, local_path: Path, remote_path: str, remove_on_success: bool) -> List[TransferResult]:
-        # Remote path is flat: <remote_path>/<filename>
-        remote_relative_path = (PurePosixPath(remote_path) / local_path.name).as_posix().lstrip("/")
+    def _transmit_one(
+        self,
+        local_path: Path,
+        remote_path: str,
+        remove_on_success: bool,
+    ) -> List[TransferResult]:
+        """Transmit one file to all configured targets."""
+        remote_relative_path = (
+            PurePosixPath(remote_path) / local_path.name
+        ).as_posix().lstrip("/")
         results: List[TransferResult] = []
 
         for target in self.targets:
-            ok = False
-            detail = ""
-            for attempt in range(1, self.retries + 1):
-                result = target.upload(local_path, remote_relative_path)
-                detail = result.detail
-                if result.ok:
-                    ok = True
-                    break
-                _sleep_backoff(attempt, self.backoff_seconds, self.max_backoff_seconds)
-            results.append(TransferResult(ok, target.kind, detail))
+            result = TransferResult(False, target.kind, "not attempted")
 
-        overall_success = all(r.ok for r in results) if self.require_all_targets else any(r.ok for r in results)
+            for attempt in range(1, self.retries + 1):
+                try:
+                    result = target.upload(
+                        local_path,
+                        remote_relative_path,
+                    )
+                except Exception as exc:
+                    # A target should return a failed result, but an unexpected
+                    # exception must not abort the rest of the outbox scan.
+                    result = TransferResult(False, target.kind, str(exc))
+
+                if result.ok:
+                    break
+
+                if attempt < self.retries:
+                    _sleep_backoff(
+                        attempt,
+                        self.backoff_seconds,
+                        self.max_backoff_seconds,
+                    )
+
+            results.append(result)
+
+        overall_success = self._overall_success(results)
 
         if overall_success:
             if remove_on_success:
-                local_path.unlink(missing_ok=True)
+                try:
+                    local_path.unlink(missing_ok=True)
+                except OSError as exc:
+                    if self.logger:
+                        self.logger.warning(
+                            "[transfer] uploaded but could not remove "
+                            "local file=%s error=%s",
+                            local_path,
+                            exc,
+                        )
+
             if self.logger:
                 self.logger.debug(
                     "[transfer] %s -> %s (%s)",
                     local_path.name,
                     remote_relative_path,
-                    ", ".join(f"{r.target}:{r.ok}" for r in results),
+                    ", ".join(
+                        f"{result.target}:{result.ok}"
+                        for result in results
+                    ),
                 )
-        else:
-            if self.logger:
-                self.logger.error(
-                    "[transfer] failed %s -> %s (%s)",
-                    local_path.name,
-                    remote_relative_path,
-                    ", ".join(f"{r.target}:{r.detail}" for r in results),
-                )
+        elif self.logger:
+            self.logger.error(
+                "[transfer] failed %s -> %s (%s)",
+                local_path.name,
+                remote_relative_path,
+                ", ".join(
+                    f"{result.target}:{result.detail}"
+                    for result in results
+                ),
+            )
 
         return results
 
     @staticmethod
-    def _build_remote_relative_path(remote_path: str, filename: str) -> str:
-        return (PurePosixPath(remote_path) / filename).as_posix().lstrip("/")
+    def _build_remote_relative_path(
+        remote_path: str,
+        filename: str,
+    ) -> str:
+        """Build a flat relative remote path."""
+        return (
+            PurePosixPath(remote_path) / filename
+        ).as_posix().lstrip("/")
 
     def startup_selftest(
         self,
@@ -512,13 +669,36 @@ class TransferHandler:
         cleanup_local: bool = True,
         verify_retries: int = 3,
     ) -> bool:
-        """
-        Create a tiny test file, upload it to all configured targets, verify it exists,
-        then attempt deletion (best-effort).
+        """Upload, verify, and delete a small transfer test file."""
+        if not self._try_start_scan("selftest", blocking=True):
+            if self.logger:
+                self.logger.warning(
+                    "[selftest] skipped because another transfer scan "
+                    "is active"
+                )
+            return False
 
-        Returns:
-            True if upload+verify succeeded for all targets that are configured.
-        """
+        try:
+            return self._startup_selftest_unlocked(
+                station_id,
+                instrument_name=instrument_name,
+                remote_root=remote_root,
+                cleanup_local=cleanup_local,
+                verify_retries=verify_retries,
+            )
+        finally:
+            self._finish_scan()
+
+    def _startup_selftest_unlocked(
+        self,
+        station_id: str,
+        *,
+        instrument_name: str,
+        remote_root: str,
+        cleanup_local: bool,
+        verify_retries: int,
+    ) -> bool:
+        """Run the startup self-test while holding the transfer lock."""
         if not self.targets:
             if self.logger:
                 self.logger.info("[selftest] skipped (no targets)")
@@ -529,7 +709,6 @@ class TransferHandler:
 
         filename = f"pydaq_selftest_{station_id}.txt"
         local_path = out_dir / filename
-
         local_path.write_text(
             "pydaq transfer self-test\n"
             f"station={station_id}\n"
@@ -538,60 +717,108 @@ class TransferHandler:
         )
 
         remote_path = f"{remote_root}/{station_id}"
-        remote_rel = self._build_remote_relative_path(remote_path, filename)
+        remote_rel = self._build_remote_relative_path(
+            remote_path,
+            filename,
+        )
 
         if self.logger:
-            self.logger.info("[selftest] upload start file=%s remote=%s", local_path.name, remote_rel)
+            self.logger.info(
+                "[selftest] upload start file=%s remote=%s",
+                local_path.name,
+                remote_rel,
+            )
 
-        # Reuse existing upload logic, but keep local file for verify/delete phase.
-        upload_results = self._transmit_one(local_path, remote_path, remove_on_success=False)
+        upload_results = self._transmit_one(
+            local_path,
+            remote_path,
+            remove_on_success=False,
+        )
 
-        verify_results: list[TransferResult] = []
-        delete_results: list[TransferResult] = []
+        verify_results: List[TransferResult] = []
+        delete_results: List[TransferResult] = []
 
-        # verify + delete aligned with self.targets order (zip is safe)
-        for target, up in zip(self.targets, upload_results):
-            if not up.ok:
-                verify_results.append(TransferResult(False, target.kind, "skip (upload failed)"))
-                delete_results.append(TransferResult(False, target.kind, "skip (upload failed)"))
+        for target, upload_result in zip(self.targets, upload_results):
+            if not upload_result.ok:
+                verify_results.append(
+                    TransferResult(
+                        False,
+                        target.kind,
+                        "skip (upload failed)",
+                    )
+                )
+                delete_results.append(
+                    TransferResult(
+                        False,
+                        target.kind,
+                        "skip (upload failed)",
+                    )
+                )
                 continue
 
-            # verify with small retry (some backends can be briefly eventual-consistent)
-            v: TransferResult = TransferResult(False, target.kind, "not verified")
-            for attempt in range(1, max(1, verify_retries) + 1):
-                v = target.exists(remote_rel)
-                if v.ok:
+            verify_result = TransferResult(
+                False,
+                target.kind,
+                "not verified",
+            )
+            attempts = max(1, verify_retries)
+            for attempt in range(1, attempts + 1):
+                verify_result = target.exists(remote_rel)
+                if verify_result.ok:
                     break
-                _sleep_backoff(attempt, base_seconds=1.0, max_seconds=5.0)
-            verify_results.append(v)
+                if attempt < attempts:
+                    _sleep_backoff(
+                        attempt,
+                        base_seconds=1.0,
+                        max_seconds=5.0,
+                    )
 
-            # delete best-effort (may fail depending on rights)
-            if v.ok:
+            verify_results.append(verify_result)
+            if verify_result.ok:
                 delete_results.append(target.delete(remote_rel))
             else:
-                delete_results.append(TransferResult(False, target.kind, "skip (not verified)"))
-
-        ok_upload = all(r.ok for r in upload_results) if self.require_all_targets else any(r.ok for r in upload_results)
-        ok_verify = all(r.ok for r in verify_results) if self.require_all_targets else any(r.ok for r in verify_results)
-
-        # Per-target log line (same logger path as normal transfers)
-        if self.logger:
-            for t, up, vr, dr in zip(self.targets, upload_results, verify_results, delete_results):
-                self.logger.info(
-                    "[selftest] target=%s upload=%s verify=%s delete=%s detail=%s",
-                    getattr(t, "kind", "target"),
-                    up.ok,
-                    vr.ok,
-                    dr.ok,
-                    (vr.detail or up.detail or dr.detail),
+                delete_results.append(
+                    TransferResult(
+                        False,
+                        target.kind,
+                        "skip (not verified)",
+                    )
                 )
-            self.logger.info("[selftest] result upload_ok=%s verify_ok=%s", ok_upload, ok_verify)
+
+        upload_ok = self._overall_success(upload_results)
+        verify_ok = self._overall_success(verify_results)
+
+        if self.logger:
+            for target, upload_result, verify_result, delete_result in zip(
+                self.targets,
+                upload_results,
+                verify_results,
+                delete_results,
+            ):
+                self.logger.info(
+                    "[selftest] target=%s upload=%s verify=%s "
+                    "delete=%s detail=%s",
+                    getattr(target, "kind", "target"),
+                    upload_result.ok,
+                    verify_result.ok,
+                    delete_result.ok,
+                    (
+                        verify_result.detail
+                        or upload_result.detail
+                        or delete_result.detail
+                    ),
+                )
+            self.logger.info(
+                "[selftest] result upload_ok=%s verify_ok=%s",
+                upload_ok,
+                verify_ok,
+            )
 
         if cleanup_local:
             try:
                 local_path.unlink(missing_ok=True)
-            except Exception:
+            except OSError:
                 pass
 
-        # For a "confirmation that transfers work", treat verify as the key signal.
-        return bool(ok_upload and ok_verify)
+        return bool(upload_ok and verify_ok)
+
