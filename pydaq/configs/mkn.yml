@@ -272,3 +272,34 @@ instruments:
     init:
       command_sequence:
         - "SEND {id}"
+
+  ne300:
+    enabled: true
+    driver: ne300
+    id: 0
+    serial_number: 23-0690
+    io:
+      kind: tcp
+      host: 192.168.3.149
+      port: 32783
+      timeout_seconds: 5
+      read_max_bytes: 65536
+      protocol: acoem
+    schedule:
+      sample_every_seconds: 5
+      rollover: hourly
+      rollover_at: ":00"
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 15
+      print_every_seconds: 0
+    output:
+      format: csv_zip
+      remote_path: ne300
+      remove_on_success: true
+    init:
+      id_on_initialize: true
+    processing:
+      aggregate: true
+      aggregation_period_seconds: 60
+      aggregation_timestamp: end
+      aggregation_method: mean
