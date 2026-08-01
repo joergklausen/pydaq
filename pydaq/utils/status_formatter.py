@@ -9,7 +9,6 @@ from __future__ import annotations
 from math import isfinite
 from typing import Any, Mapping
 
-
 _METADATA_KEYS = frozenset(
     {
         "dtm",
@@ -25,6 +24,58 @@ _METADATA_KEYS = frozenset(
         "raw",
     }
 )
+
+
+def format_number(
+    value: Any,
+    *,
+    decimal_places: int | None = None,
+    significant_digits: int = 4,
+) -> str:
+    """Format one displayed number with a maximum significant-digit count.
+
+    ``decimal_places`` preserves an existing operator-display convention when
+    that representation already contains no more than ``significant_digits``.
+    If it would expose too many significant digits, general formatting is used
+    instead. The source value is never modified.
+
+    Examples:
+        ``38.8512`` -> ``38.85``
+        ``5.8947`` -> ``5.895``
+        ``462.5377`` with ``decimal_places=1`` -> ``462.5``
+
+    Args:
+        value: Numeric value or numeric string.
+        decimal_places: Preferred fixed decimal places, or ``None``.
+        significant_digits: Maximum number of significant digits.
+
+    Returns:
+        Compact number text, or ``-`` for a missing/non-finite value.
+    """
+    if value is None or value == "":
+        return "-"
+    if significant_digits < 1:
+        raise ValueError("significant_digits must be at least 1")
+
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "-"
+    if not isfinite(number):
+        return "-"
+
+    # Avoid a visually confusing negative zero in compact status output.
+    if number == 0:
+        number = 0.0
+
+    if decimal_places is not None:
+        if decimal_places < 0:
+            raise ValueError("decimal_places must be non-negative")
+        fixed = f"{number:.{decimal_places}f}"
+        if _significant_digit_count(fixed) <= significant_digits:
+            return fixed
+
+    return f"{number:.{significant_digits}g}"
 
 
 def format_latest_record(record: Mapping[str, Any]) -> str:
@@ -46,7 +97,9 @@ def format_latest_record(record: Mapping[str, Any]) -> str:
     # Thermo 49-series ozone analysers.
     ozone = _number(record, "o3")
     if ozone is not None:
-        parts = [f"O3={ozone:.1f} ppb"]
+        parts = [
+            f"O3={format_number(ozone, decimal_places=1)} ppb"
+        ]
         flags = _text(record.get("flags"))
         if flags:
             parts.append(f"flags={flags}")
@@ -57,12 +110,14 @@ def format_latest_record(record: Mapping[str, Any]) -> str:
     humidity = _number(record, "RH")
     if temperature is not None and humidity is not None:
         parts = [
-            f"T={temperature:.1f} °C",
-            f"RH={humidity:.1f} %",
+            f"T={format_number(temperature, decimal_places=1)} °C",
+            f"RH={format_number(humidity, decimal_places=1)} %",
         ]
         dewpoint = _number(record, "Td")
         if dewpoint is not None:
-            parts.append(f"Td={dewpoint:.1f} °C")
+            parts.append(
+                f"Td={format_number(dewpoint, decimal_places=1)} °C"
+            )
         return " ".join(parts)
 
     # PALAS FIDAS: channels 61/62/64 are PM1/PM2.5/PM10 in mg/m³.
@@ -73,11 +128,17 @@ def format_latest_record(record: Mapping[str, Any]) -> str:
     if any(value is not None for value in (pm1, pm25, pm10)):
         parts: list[str] = []
         if pm1 is not None:
-            parts.append(f"PM1={pm1:.1f}")
+            parts.append(
+                f"PM1={format_number(pm1, decimal_places=1)}"
+            )
         if pm25 is not None:
-            parts.append(f"PM2.5={pm25:.1f}")
+            parts.append(
+                f"PM2.5={format_number(pm25, decimal_places=1)}"
+            )
         if pm10 is not None:
-            parts.append(f"PM10={pm10:.1f}")
+            parts.append(
+                f"PM10={format_number(pm10, decimal_places=1)}"
+            )
         parts.append("µg/m³")
         return " ".join(parts)
 
@@ -86,12 +147,16 @@ def format_latest_record(record: Mapping[str, Any]) -> str:
     if bc880 is None:
         bc880 = _number(record, "IR880")
     if bc880 is not None:
-        parts = [f"BC880={bc880:.0f} ng/m³"]
+        parts = [
+            f"BC880={format_number(bc880, decimal_places=0)} ng/m³"
+        ]
 
         # AE33 FlowC is reported in mL/min.
         flow_lpm = _number(record, "FlowC", scale=0.001)
         if flow_lpm is not None:
-            parts.append(f"flow={flow_lpm:.2f} L/min")
+            parts.append(
+                f"flow={format_number(flow_lpm, decimal_places=2)} L/min"
+            )
 
         # The AE33 TCP Data-table record contains the instrument estimate of
         # remaining tape advances immediately after TapeAdvCount. The current
@@ -125,17 +190,19 @@ def format_latest_record(record: Mapping[str, Any]) -> str:
 
         return " ".join(parts)
 
-    # Ecotech/ACOem nephelometers.
+    # Ecotech/Acoem nephelometers using the ordinary instantaneous record.
     scattering = [_number(record, key) for key in ("ssp1", "ssp2", "ssp3")]
     if any(value is not None for value in scattering):
         parts = [
-            f"ssp{index}={value:.3g}"
+            f"ssp{index}={format_number(value, significant_digits=3)}"
             for index, value in enumerate(scattering, start=1)
             if value is not None
         ]
         rh = _number(record, "RH")
         if rh is not None:
-            parts.append(f"RH={rh:.1f} %")
+            parts.append(
+                f"RH={format_number(rh, decimal_places=1)} %"
+            )
         return " ".join(parts)
 
     return _generic_summary(record)
@@ -174,7 +241,6 @@ def _format_ae33_status(status_code: int) -> str:
             48: ["LED error"],
         }.get(optical_source, [])
     )
-
     if status_code & 0x0040:
         descriptions.append("chamber error")
 
@@ -279,7 +345,11 @@ def _text(value: Any, *, max_length: int = 40) -> str:
     return f"{text[: max_length - 1]}…"
 
 
-def _generic_summary(record: Mapping[str, Any], *, max_fields: int = 4) -> str:
+def _generic_summary(
+    record: Mapping[str, Any],
+    *,
+    max_fields: int = 4,
+) -> str:
     parts: list[str] = []
     for key, value in record.items():
         if key in _METADATA_KEYS or key.startswith("unclear"):
@@ -287,13 +357,14 @@ def _generic_summary(record: Mapping[str, Any], *, max_fields: int = 4) -> str:
         if isinstance(value, (dict, list, tuple, set)):
             continue
 
-        if isinstance(value, float):
-            if not isfinite(value):
+        if isinstance(value, bool):
+            text = str(value)
+        elif isinstance(value, (int, float)):
+            text = format_number(value)
+            if text == "-":
                 continue
-            text = f"{value:.4g}"
         else:
             text = _text(value, max_length=24)
-
         if not text:
             continue
 
@@ -302,3 +373,11 @@ def _generic_summary(record: Mapping[str, Any], *, max_fields: int = 4) -> str:
             break
 
     return " ".join(parts) if parts else f"{len(record)} fields"
+
+
+def _significant_digit_count(text: str) -> int:
+    """Count significant digits in fixed-format numeric text."""
+    mantissa = text.lower().split("e", 1)[0].lstrip("+-")
+    digits = "".join(character for character in mantissa if character.isdigit())
+    significant = digits.lstrip("0")
+    return len(significant) if significant else 1

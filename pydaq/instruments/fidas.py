@@ -33,6 +33,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import polars as pl
 
 from pydaq.instruments.instrument import Instrument, utc_timestamp_string
+from pydaq.utils.status_formatter import format_number
 
 
 class FIDAS(Instrument):
@@ -229,13 +230,14 @@ class FIDAS(Instrument):
         return row
 
     def _log_aggregate_summary(self, row: Dict[str, Any]) -> None:
-        summary = {
-            key: row[key]
+        """Log selected aggregate channels with at most four significant digits."""
+        parts = [
+            f"{key}={format_number(row[key], significant_digits=4)}"
             for key in self.DEFAULT_PRINT_KEYS
             if key in row and row[key] is not None
-        }
-        if summary:
-            self.logger.info("aggregate %s", summary)
+        ]
+        if parts:
+            self.logger.info("%s", " ".join(parts))
 
     def _emit_aggregate_if_due(self, now: Optional[datetime] = None, *, force: bool = False) -> None:
         current_time = now or self._now_utc()
@@ -301,7 +303,9 @@ class FIDAS(Instrument):
         for key in keys:
             value = self._last_parsed.get(str(key))
             if isinstance(value, (int, float)):
-                parts.append(f"{key}={value:.3f}")
+                parts.append(
+                    f"{key}={format_number(value, significant_digits=4)}"
+                )
 
         if parts:
             self.logger.info("%s", "; ".join(parts))

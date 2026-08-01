@@ -96,9 +96,11 @@ def live_ne300_driver(
 @pytest.mark.integration
 def test_ne300_integration_uses_command7_header_and_writes_records(
     live_ne300_driver: Any,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Retrieve live logger data and verify the packet-defined output schema."""
     instrument = live_ne300_driver
+    caplog.set_level(logging.INFO)
     instrument.initialize()
 
     writer = instrument.writer
@@ -148,3 +150,12 @@ def test_ne300_integration_uses_command7_header_and_writes_records(
         assert row["2002"] > 0
 
     assert instrument.state.latest == writer.appended[-1]
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(
+        "[ne300]" in message
+        and "ssp|bssp (Mm-1)" in message
+        and "mode=" in message
+        and "records=" not in message
+        for message in messages
+    ), "Successful NE300 retrieval did not emit the compact INFO summary."
