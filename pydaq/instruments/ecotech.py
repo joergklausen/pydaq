@@ -1,20 +1,17 @@
 from __future__ import annotations
 
-"""Ecotech / ACOEM nephelometer driver for pydaq.
+"""Ecotech / ACOEM nephelometer drivers for pydaq.
 
-The driver supports two related instrument protocols:
+The module supports two related instrument protocols:
 
 * ``io.protocol: aurora`` for the Ecotech Aurora 3000 ASCII protocol.
 * ``io.protocol: acoem`` for the ACOEM binary protocol used by the NE-300.
 
-``driver: aurora3000`` defaults to the Aurora protocol and ``driver: ne300``
-defaults to the ACOEM protocol.  The explicit ``io.protocol`` setting remains
-available for diagnostics and unusual installations.
-
-The shared :class:`NEPH` driver reads instantaneous values and can aggregate
-them with :class:`TimeBucketAggregator`.  The :class:`NE300` subclass retrieves
-the complete records from the instrument's internal data logger using ACOEM
-command 7 and writes every returned record.
+``NEPH`` reads instantaneous values and optionally aggregates them. ``NE300``
+retrieves complete records from the instrument's internal data logger with
+ACOEM command 7.  For command 7, the parameter header returned by the
+instrument is authoritative: its unmodified field order is retained for
+positional decoding, while a separate normalized list defines CSV columns.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -29,12 +26,7 @@ from pydaq.instruments.instrument import Instrument, LineComms, TimeBucketAggreg
 
 
 class NEPH(Instrument):
-    """Driver for Aurora 3000 and NE-300 nephelometers.
-
-    The output columns preserve the historical Aurora 3000 current-value
-    format.  For the ACOEM protocol, equivalent NE-300 parameter IDs are mapped
-    onto the same column names.
-    """
+    """Driver for Aurora 3000 and NE-300 nephelometers."""
 
     HEADERS = [
         "dtm",
@@ -53,10 +45,8 @@ class NEPH(Instrument):
     ]
     AURORA_VI99_VALUE_FIELDS = HEADERS[1:]
 
-    # Equivalent to the Aurora VI099 current-data response.  Parameter 4035
-    # is CURRENT_OPERATION and therefore maps to ``major_state``; parameter
-    # 4036 maps to ``DIO_state``.  This is also consistent with the NE-300
-    # logged-data record header, where CURRENT_OPERATION is carried as 4035.
+    # Equivalent to the Aurora VI099 current-data response. Parameter 4035 is
+    # CURRENT_OPERATION and maps to major_state; 4036 maps to DIO_state.
     ACOEM_CURRENT_PARAMETER_IDS = [
         1,
         1635000,
@@ -73,11 +63,10 @@ class NEPH(Instrument):
         4036,
     ]
     ACOEM_PARAMETER_TO_FIELD = dict(zip(ACOEM_CURRENT_PARAMETER_IDS, HEADERS))
-
     _TELNET_NEGOTIATION = b"\xff\xfb\x01\xff\xfe\x01\xff\xfb\x03"
 
     def initialize(self) -> None:
-        """Read driver parameters and initialize communication helpers."""
+        """Read driver parameters and initialize communications."""
         params = self._params()
         io_cfg = self._resolve_io_config(params)
         schedule_cfg = self._optional_mapping(params, "schedule")
@@ -101,7 +90,6 @@ class NEPH(Instrument):
             default="serial" if self.protocol == "aurora" else "tcp",
         )
         self.comms: LineComms | None = None
-
         if self.protocol == "aurora":
             self.comms = LineComms(dict(io_cfg), logger=self.logger)
         else:
@@ -149,15 +137,12 @@ class NEPH(Instrument):
             sample = self.get_current_sample()
             if not sample:
                 return {}
-
             if self.aggregator is None:
                 return self._format_record(sample)
-
             aggregate = self.aggregator.add(sample)
             if aggregate is None:
                 return {}
             return self._format_record(aggregate)
-
         except Exception as exc:
             self.logger.error(
                 "[%s] Ecotech get_record failed: %s",
@@ -168,12 +153,8 @@ class NEPH(Instrument):
             return {}
 
     def collect_record(self) -> dict[str, Any]:
-        """Compatibility alias for older pydaq driver code."""
+        """Compatibility alias for older driver code."""
         return self.get_record()
-
-    # ------------------------------------------------------------------
-    # Public diagnostic helpers
-    # ------------------------------------------------------------------
 
     def get_current_sample(self) -> dict[str, Any]:
         """Return one instantaneous sample before optional aggregation."""
@@ -181,22 +162,18 @@ class NEPH(Instrument):
             return self._get_aurora_current_sample()
         if self.protocol == "acoem":
             return self._get_acoem_current_sample()
-        raise ValueError(
-            f"[{self.name}] unsupported protocol {self.protocol!r}"
-        )
+        raise ValueError(f"[{self.name}] unsupported protocol {self.protocol!r}")
 
     def get_instrument_id(self) -> str:
         """Return an instrument identification string, when supported."""
         if self.protocol == "aurora":
             return self._aurora_request(f"ID{self.serial_id}").strip()
-
         if self.protocol == "acoem":
             instr_type = self.get_instr_type()
             version = self.get_version()
             if not instr_type and not version:
                 return ""
             return f"type={instr_type} version={version}"
-
         return ""
 
     def get_status_word(self) -> str:
@@ -235,10 +212,7 @@ class NEPH(Instrument):
         legacy: dict[str, Any] = {}
         if "serial_port" in params or "port" in params:
             legacy["kind"] = "serial"
-            legacy["port"] = params.get(
-                "serial_port",
-                params.get("port", ""),
-            )
+            legacy["port"] = params.get("serial_port", params.get("port", ""))
             legacy["baudrate"] = params.get(
                 "serial_baudrate",
                 params.get("baudrate", 19200),
@@ -247,10 +221,7 @@ class NEPH(Instrument):
                 "serial_timeout",
                 params.get("timeout", 2.0),
             )
-        elif "socket" in params and isinstance(
-            params.get("socket"),
-            Mapping,
-        ):
+        elif "socket" in params and isinstance(params.get("socket"), Mapping):
             socket_cfg = dict(params["socket"])
             legacy["kind"] = "tcp"
             legacy["host"] = socket_cfg.get("host", "")
@@ -266,7 +237,6 @@ class NEPH(Instrument):
             if "protocol" in params:
                 legacy["protocol"] = params["protocol"]
             return legacy
-
         raise ValueError(f"[{self.name}] missing 'io' configuration block.")
 
     def _resolve_protocol(
@@ -277,17 +247,14 @@ class NEPH(Instrument):
         """Resolve protocol from ``io.protocol`` with driver-based defaults."""
         driver = str(params.get("driver", "")).strip().lower()
         instrument_name = str(getattr(self, "name", "")).strip().lower()
-
         default = (
             "acoem"
             if driver == "ne300" or instrument_name == "ne300"
             else "aurora"
         )
-
-        # Top-level protocol is retained only for backward compatibility.
+        # Top-level protocol remains supported for backward compatibility.
         raw = io_cfg.get("protocol", params.get("protocol", default))
         protocol = self._as_text(raw, name="io.protocol").lower()
-
         if protocol not in {"aurora", "acoem"}:
             raise ValueError(
                 f"[{self.name}] unsupported io.protocol={protocol!r}; "
@@ -345,7 +312,6 @@ class NEPH(Instrument):
             enabled_default = aggregate_setting.get("enabled", True)
         else:
             enabled_default = aggregate_setting
-
         enabled = self._as_bool(
             aggregate_cfg.get("enabled", enabled_default)
         )
@@ -362,7 +328,6 @@ class NEPH(Instrument):
             ),
             name="aggregation timestamp",
         ).lower()
-
         default_method = self._as_text(
             aggregate_cfg.get(
                 "method",
@@ -378,9 +343,6 @@ class NEPH(Instrument):
             "default_method": default_method,
             "logger": self.logger,
         }
-
-        # Maintain compatibility with TimeBucketAggregator revisions that have
-        # or do not have explicit fields / field_methods parameters.
         signature = inspect.signature(TimeBucketAggregator)
         parameters = signature.parameters
         if "fields" in parameters:
@@ -389,7 +351,6 @@ class NEPH(Instrument):
             ]
         if "field_methods" in parameters:
             kwargs["field_methods"] = {}
-
         return TimeBucketAggregator(**kwargs)
 
     def _aggregation_period_seconds(
@@ -412,13 +373,11 @@ class NEPH(Instrument):
                 schedule_cfg.get("aggregation_period_minutes"),
             ),
         )
-
         if raw_seconds is not None:
             return self._as_int(
                 raw_seconds,
                 name="aggregation_period_seconds",
             )
-
         if raw_minutes is not None:
             minutes = self._as_decimal(
                 raw_minutes,
@@ -426,8 +385,6 @@ class NEPH(Instrument):
             )
             return int(minutes * Decimal(60))
 
-        # Backward-compatible convenience: sub-minute acquisition defaults to
-        # one-minute output aggregation when no explicit period is provided.
         sample_every = schedule_cfg.get("sample_every_seconds")
         if sample_every is not None:
             sample_seconds = self._as_decimal(
@@ -436,7 +393,6 @@ class NEPH(Instrument):
             )
             if Decimal(0) < sample_seconds < Decimal(60):
                 return 60
-
         return 0
 
     def _resolve_acoem_parameters(
@@ -450,20 +406,15 @@ class NEPH(Instrument):
                 "parameters",
                 params.get(
                     "current_parameters",
-                    params.get(
-                        "parameters",
-                        self.ACOEM_CURRENT_PARAMETER_IDS,
-                    ),
+                    params.get("parameters", self.ACOEM_CURRENT_PARAMETER_IDS),
                 ),
             ),
         )
-
         if not isinstance(raw, Iterable) or isinstance(raw, (str, bytes)):
             raise ValueError(
                 f"[{self.name}] ACOEM current parameters must be a list "
                 "of integers."
             )
-
         parameters = [
             self._as_int(value, name="acoem parameter") for value in raw
         ]
@@ -494,7 +445,6 @@ class NEPH(Instrument):
             raise ValueError(
                 f"[{self.name}] Aurora VI099 returned an empty response."
             )
-
         parts = [
             part.strip()
             for part in line.replace(", ", ",").split(",")
@@ -505,10 +455,7 @@ class NEPH(Instrument):
                 f"[{self.name}] Aurora VI099 returned {len(parts)} fields; "
                 f"expected at least {expected}: {line!r}"
             )
-
-        record: dict[str, Any] = {
-            "dtm": self._parse_datetime(parts[0])
-        }
+        record: dict[str, Any] = {"dtm": self._parse_datetime(parts[0])}
         for field, token in zip(
             self.AURORA_VI99_VALUE_FIELDS,
             parts[1:expected],
@@ -545,7 +492,7 @@ class NEPH(Instrument):
             return int(text, 16)
 
     # ------------------------------------------------------------------
-    # ACOEM binary protocol, current-data subset
+    # ACOEM binary protocol
     # ------------------------------------------------------------------
 
     def _init_acoem_tcp(self, io_cfg: Mapping[str, Any]) -> None:
@@ -553,7 +500,6 @@ class NEPH(Instrument):
             raise ValueError(
                 f"[{self.name}] io.protocol='acoem' requires io.kind='tcp'."
             )
-
         self.tcp_host = self._as_text(
             io_cfg.get("host", io_cfg.get("ip", "")),
             name="io.host",
@@ -573,7 +519,6 @@ class NEPH(Instrument):
             io_cfg.get("read_max_bytes", 65536),
             name="io.read_max_bytes",
         )
-
         if not self.tcp_host or self.tcp_port <= 0:
             raise ValueError(
                 f"[{self.name}] ACOEM TCP transport requires "
@@ -588,12 +533,10 @@ class NEPH(Instrument):
         values = self.get_values(self.acoem_parameters)
         if not values:
             return {}
-
         record: dict[str, Any] = {}
         for parameter, field in self.ACOEM_PARAMETER_TO_FIELD.items():
             if parameter in values:
                 record[field] = values[parameter]
-
         record.setdefault(
             "dtm",
             datetime.now(timezone.utc).replace(microsecond=0),
@@ -628,7 +571,6 @@ class NEPH(Instrument):
         ]
         if not params:
             return {}
-
         payload = b"".join(
             parameter.to_bytes(4, byteorder="big", signed=False)
             for parameter in params
@@ -645,14 +587,8 @@ class NEPH(Instrument):
         *,
         end_marker: bytes,
     ) -> bytes:
-        """Send one request and read one complete length-delimited ACOEM frame.
-
-        ``end_marker`` is retained in the signature for compatibility, but the
-        reader does not stop merely because byte 0x04 occurs in the payload.
-        The declared ACOEM message length determines when the frame is complete.
-        """
+        """Send one request and read one complete length-delimited frame."""
         del end_marker
-
         chunks: list[bytes] = []
         timeout = self._decimal_to_float(self.tcp_timeout)
 
@@ -664,7 +600,6 @@ class NEPH(Instrument):
             while True:
                 raw = b"".join(chunks)
                 data = raw.replace(self._TELNET_NEGOTIATION, b"")
-
                 if len(data) >= 6:
                     message_length = int.from_bytes(
                         data[4:6],
@@ -673,13 +608,11 @@ class NEPH(Instrument):
                     expected_length = 6 + message_length + 2
                     if len(data) >= expected_length:
                         return data[:expected_length]
-
                 if len(data) >= self.tcp_read_max_bytes:
                     raise ValueError(
                         f"[{self.name}] ACOEM response exceeds "
                         f"io.read_max_bytes={self.tcp_read_max_bytes}."
                     )
-
                 chunk = sock.recv(4096)
                 if not chunk:
                     break
@@ -691,12 +624,10 @@ class NEPH(Instrument):
                 f"[{self.name}] ACOEM instrument closed the connection "
                 "without returning data."
             )
-
         if len(data) < 6:
             raise ValueError(
                 f"[{self.name}] truncated ACOEM response: {data!r}"
             )
-
         message_length = int.from_bytes(data[4:6], byteorder="big")
         expected_length = 6 + message_length + 2
         raise ValueError(
@@ -719,7 +650,6 @@ class NEPH(Instrument):
                 signed=False,
             )
         msg_data += payload
-
         msg = (
             bytes([2, self.serial_id, command, 3])
             + len(msg_data).to_bytes(2, byteorder="big")
@@ -751,7 +681,6 @@ class NEPH(Instrument):
                 f"[{self.name}] malformed ACOEM frame header: "
                 f"{response[:6]!r}"
             )
-
         message_length = int.from_bytes(response[4:6], byteorder="big")
         frame_length = 6 + message_length + 2
         if len(response) < frame_length:
@@ -759,13 +688,11 @@ class NEPH(Instrument):
                 f"[{self.name}] truncated ACOEM frame: received "
                 f"{len(response)} bytes, expected {frame_length}."
             )
-
         frame = response[:frame_length]
         if frame[-1] != 4:
             raise ValueError(
                 f"[{self.name}] malformed ACOEM frame: missing EOT."
             )
-
         expected_checksum = self._acoem_checksum(frame[:-2])
         received_checksum = frame[-2:-1]
         if received_checksum != expected_checksum:
@@ -777,7 +704,6 @@ class NEPH(Instrument):
 
         command = frame[2]
         body = frame[6 : 6 + message_length]
-
         if command == 0:
             error_code = body[0] if body else None
             self.logger.error(
@@ -787,13 +713,11 @@ class NEPH(Instrument):
                 frame,
             )
             return command, body
-
         if expected_command is not None and command != expected_command:
             raise ValueError(
                 f"[{self.name}] unexpected ACOEM command in response: "
                 f"received={command}, expected={expected_command}."
             )
-
         return command, body
 
     def _acoem_bytes_to_ints(
@@ -834,7 +758,6 @@ class NEPH(Instrument):
                 f"[{self.name}] ACOEM value response body has "
                 f"{len(body)} bytes; expected a multiple of four."
             )
-
         chunks = [
             body[index : index + 4]
             for index in range(0, len(body), 4)
@@ -854,9 +777,7 @@ class NEPH(Instrument):
             elif self._acoem_parameter_is_int(parameter):
                 result[parameter] = Decimal(struct.unpack(">i", chunk)[0])
             else:
-                result[parameter] = Decimal(
-                    str(struct.unpack(">f", chunk)[0])
-                )
+                result[parameter] = Decimal(str(struct.unpack(">f", chunk)[0]))
         return result
 
     @staticmethod
@@ -907,10 +828,7 @@ class NEPH(Instrument):
             elif value is None or value == "":
                 output[field] = ""
             else:
-                output[field] = self._format_decimal_3(
-                    value,
-                    name=field,
-                )
+                output[field] = self._format_decimal_3(value, name=field)
         return output
 
     @staticmethod
@@ -925,14 +843,10 @@ class NEPH(Instrument):
             dtm = NEPH._parse_datetime(value)
         else:
             raise TypeError(f"Invalid datetime value: {value!r}")
-
         return dtm.replace(
             tzinfo=None,
             microsecond=0,
-        ).isoformat(
-            timespec="seconds",
-            sep=separator,
-        )
+        ).isoformat(timespec="seconds", sep=separator)
 
     @staticmethod
     def _parse_datetime(value: str) -> datetime:
@@ -1013,67 +927,15 @@ class NEPH(Instrument):
     @staticmethod
     def _decimal_to_float(value: Decimal) -> float:
         return float(value)
+
+
 class NE300(NEPH):
-    """ACOEM NE-300 driver using the instrument's internal data logger.
+    """ACOEM NE-300 driver using the instrument's internal data logger."""
 
-    Unlike :class:`NEPH`, which polls a single current-value record, this class
-    uses ACOEM command 7 to retrieve every one-minute record stored by the
-    instrument.  Each command-7 response contains a header record with the
-    actual parameter IDs followed by one or more data records.
-
-    The writer header is updated from the command-6 configuration and, more
-    importantly, from the command-7 header before the first row is written.
-    This preserves the complete record and avoids hard-coding a reduced set of
-    current-value fields.
-    """
-
-    # A non-empty bootstrap header is required so the orchestrator creates an
-    # HourlyCsvWriter.  It is replaced during initialize() and again from the
-    # first command-7 header before any data are appended.
+    # A non-empty bootstrap header ensures that the base class creates a writer.
+    # It is replaced by command 6, and authoritatively by command 7, before rows
+    # are appended. No fixed logged-parameter list is assumed.
     HEADERS = ["dtm"]
-
-    # Header observed in the MKN records collected on 2026-08-01.  It is used
-    # only as a safe startup fallback when command 6 is unavailable.  The
-    # command-7 packet header remains authoritative.
-    DEFAULT_LOGGED_PARAMETER_IDS = [
-        2635000,
-        2525000,
-        2450000,
-        2635090,
-        2525090,
-        2450090,
-        5001,
-        5002,
-        5003,
-        5004,
-        5005,
-        5006,
-        5010,
-        26635000,
-        26525000,
-        26450000,
-        13525000,
-        15635000,
-        15525000,
-        15450000,
-        11635000,
-        11525000,
-        11450000,
-        11635090,
-        11525090,
-        11450090,
-        6007,
-        6008,
-        6001,
-        6002,
-        6003,
-        6635000,
-        6525000,
-        6450000,
-        6635090,
-        6525090,
-        6450090,
-    ]
 
     def initialize(self) -> None:
         """Initialize ACOEM communications and logged-data retrieval."""
@@ -1084,8 +946,7 @@ class NE300(NEPH):
                 f"[{self.name}] NE300 requires io.protocol='acoem'."
             )
 
-        # The NE-300 already stores one-minute aggregates internally.  Do not
-        # aggregate the retrieved logger records a second time in pydaq.
+        # The NE-300 logger already stores one-minute aggregates.
         self.aggregator = None
         self.empty_record_is_ok = True
 
@@ -1116,22 +977,20 @@ class NE300(NEPH):
             ),
         )
 
-        configured_parameters = data_log_cfg.get(
-            "parameters",
-            self.DEFAULT_LOGGED_PARAMETER_IDS,
-        )
-        self._set_logged_parameter_ids(
-            configured_parameters,
-            source="configuration/default",
-        )
+        # An explicitly configured list may be used provisionally. The command-7
+        # packet header remains authoritative for positional decoding and output.
+        self.logged_parameter_ids: list[int] = []
+        self.logged_packet_parameter_ids: list[int] = []
+        if "parameters" in data_log_cfg:
+            self._set_logged_parameter_ids(
+                data_log_cfg["parameters"],
+                source="configuration",
+            )
 
         now = self._floor_to_minute(datetime.now(timezone.utc))
         self._logged_cursor = now
         self._last_logged_dtm: datetime | None = None
 
-        # Command 6 is useful but not fully reliable on all firmware versions.
-        # Keep the fallback above and let the first command-7 packet header
-        # override it before rows are written.
         try:
             reported = self.get_data_log_config()
             if reported:
@@ -1139,25 +998,38 @@ class NE300(NEPH):
                     reported,
                     source="command 6 data-log config",
                 )
-            else:
+            elif not self.logged_parameter_ids:
                 self.logger.warning(
                     "[%s] command 6 returned no logged parameter IDs; "
-                    "using fallback until a command-7 header is received",
+                    "waiting for the command-7 packet header",
                     self.name,
                 )
         except Exception as exc:
-            self.logger.warning(
-                "[%s] could not read command-6 data-log config: %s; "
-                "using fallback until a command-7 header is received",
-                self.name,
-                exc,
-            )
+            if self.logged_parameter_ids:
+                self.logger.warning(
+                    "[%s] could not read command-6 data-log config: %s; "
+                    "retaining the configured header until command 7",
+                    self.name,
+                    exc,
+                )
+            else:
+                self.logger.warning(
+                    "[%s] could not read command-6 data-log config: %s; "
+                    "waiting for the command-7 packet header",
+                    self.name,
+                    exc,
+                )
 
+        fields: int | str = (
+            len(self.logged_parameter_ids)
+            if self.logged_parameter_ids
+            else "pending-command-7"
+        )
         self.logger.info(
-            "[%s] NE300 logged-data retrieval ready fields=%d "
+            "[%s] NE300 logged-data retrieval ready fields=%s "
             "chunk_seconds=%d overlap_seconds=%d",
             self.name,
-            len(self.logged_parameter_ids),
+            fields,
             self.logged_chunk_seconds,
             self.logged_overlap_seconds,
         )
@@ -1174,7 +1046,6 @@ class NE300(NEPH):
             return
 
         written: list[dict[str, Any]] = []
-
         while cursor < end:
             chunk_end = min(
                 cursor + timedelta(seconds=self.logged_chunk_seconds),
@@ -1189,17 +1060,13 @@ class NE300(NEPH):
                 )
 
             records = self.get_logged_data(query_start, chunk_end)
-
             for record in sorted(
                 records,
-                key=lambda item: self._coerce_logged_datetime(
-                    item.get("dtm")
-                ),
+                key=lambda item: self._coerce_logged_datetime(item.get("dtm")),
             ):
                 dtm = self._coerce_logged_datetime(record.get("dtm"))
-
-                # Treat command-7 end times as exclusive.  The next query starts
-                # at the previous end, so this also prevents boundary doubles.
+                # Command-7 end times are exclusive; also suppress overlap and
+                # boundary duplicates between consecutive retrievals.
                 if dtm < query_start or dtm >= chunk_end:
                     continue
                 if (
@@ -1214,7 +1081,7 @@ class NE300(NEPH):
                 written.append(formatted)
                 self._last_logged_dtm = dtm
 
-            # Advance only after this chunk completed without an exception.
+            # Advance only after a complete chunk succeeds.
             self._logged_cursor = chunk_end
             cursor = chunk_end
 
@@ -1242,7 +1109,6 @@ class NE300(NEPH):
                 "recovered after %s empty acquisition cycle(s)",
                 previous_empty,
             )
-
         if self.writer:
             self.writer.finalize_if_needed(now=end)
 
@@ -1276,7 +1142,7 @@ class NE300(NEPH):
                 reported_count,
                 len(parameters),
             )
-        return self._normalise_logged_parameter_ids(parameters)
+        return parameters
 
     def get_logged_data(
         self,
@@ -1288,7 +1154,6 @@ class NE300(NEPH):
         end_utc = self._as_utc_datetime(end)
         if end_utc <= start_utc:
             return []
-
         payload = (
             self._acoem_datetime_to_timestamp(start_utc)
             + self._acoem_datetime_to_timestamp(end_utc)
@@ -1303,7 +1168,7 @@ class NE300(NEPH):
         self,
         response: bytes,
     ) -> list[dict[Any, Any]]:
-        """Decode a complete command-7 response, including its header record."""
+        """Decode command 7 using its raw packet header positionally."""
         command, body = self._acoem_response_body(
             response,
             expected_command=7,
@@ -1312,7 +1177,7 @@ class NE300(NEPH):
             return []
 
         result: list[dict[Any, Any]] = []
-        packet_parameters: list[int] | None = None
+        packet_parameters_raw: list[int] | None = None
         offset = 0
 
         while offset < len(body):
@@ -1337,6 +1202,7 @@ class NE300(NEPH):
                 byteorder="big",
             )
             record_length = 16 + 4 * field_count
+
             if offset + record_length > len(body):
                 raise ValueError(
                     f"[{self.name}] truncated command-7 record at "
@@ -1353,39 +1219,74 @@ class NE300(NEPH):
             ]
 
             if record_type == 1:
-                packet_parameters = [
+                # Keep this list exactly as transmitted. Each entry corresponds
+                # to one data-record field, including IDs omitted from CSV output.
+                packet_parameters_raw = [
                     int.from_bytes(field, byteorder="big")
                     for field in fields
                 ]
-                packet_parameters = self._normalise_logged_parameter_ids(
-                    packet_parameters
+                self.logged_packet_parameter_ids = list(packet_parameters_raw)
+
+                output_parameters = self._normalise_logged_parameter_ids(
+                    packet_parameters_raw
                 )
+                if len(output_parameters) != len(packet_parameters_raw):
+                    omitted: list[int] = []
+                    seen: set[int] = set()
+                    for parameter in packet_parameters_raw:
+                        if (
+                            parameter <= 0
+                            or parameter in {4035, 2002}
+                            or parameter in seen
+                        ):
+                            omitted.append(parameter)
+                        else:
+                            seen.add(parameter)
+                    self.logger.info(
+                        "[%s] command-7 packet header fields=%d "
+                        "output_fields=%d omitted=%s",
+                        self.name,
+                        len(packet_parameters_raw),
+                        len(output_parameters),
+                        omitted,
+                    )
+
+                # This normalizes only the output schema; packet_parameters_raw
+                # remains unmodified for count validation and positional zipping.
                 self._set_logged_parameter_ids(
-                    packet_parameters,
+                    packet_parameters_raw,
                     source="command 7 packet header",
                 )
 
             elif record_type == 0:
-                if packet_parameters is None:
+                if packet_parameters_raw is None:
                     raise ValueError(
                         f"[{self.name}] command-7 data record arrived "
                         "before a parameter header."
                     )
-                if len(fields) != len(packet_parameters):
+                if len(fields) != len(packet_parameters_raw):
                     raise ValueError(
                         f"[{self.name}] command-7 field count mismatch: "
-                        f"header={len(packet_parameters)} "
+                        f"header={len(packet_parameters_raw)} "
                         f"record={len(fields)}."
                     )
 
                 record: dict[Any, Any] = {
-                    "dtm": self._acoem_timestamp_to_datetime(
-                        timestamp_raw
-                    ),
+                    "dtm": self._acoem_timestamp_to_datetime(timestamp_raw),
                     4035: int(current_operation),
                     2002: int(logging_period),
                 }
-                for parameter, field in zip(packet_parameters, fields):
+                seen_parameters: set[int] = set()
+                for parameter, field in zip(packet_parameters_raw, fields):
+                    # Consume every field position, but do not duplicate fixed
+                    # record metadata, invalid IDs, or duplicate CSV columns.
+                    if (
+                        parameter <= 0
+                        or parameter in {4035, 2002}
+                        or parameter in seen_parameters
+                    ):
+                        continue
+                    seen_parameters.add(parameter)
                     record[parameter] = round(
                         struct.unpack(">f", field)[0],
                         5,
@@ -1416,7 +1317,6 @@ class NE300(NEPH):
                 f"[{self.name}] no valid NE300 logged parameter IDs "
                 f"received from {source}."
             )
-
         headers = ["dtm", "4035", "2002"] + [
             str(parameter) for parameter in parameters
         ]
@@ -1439,7 +1339,6 @@ class NE300(NEPH):
         self.HEADERS = headers
         if self.writer:
             self.writer.headers = list(headers)
-
         self.logger.info(
             "[%s] NE300 data header set from %s: %d columns",
             self.name,
@@ -1467,7 +1366,7 @@ class NE300(NEPH):
         self,
         record: Mapping[Any, Any],
     ) -> dict[str, Any]:
-        """Format one complete logged record in the active packet-header order."""
+        """Format one record in the active command-7 header order."""
         dtm = self._coerce_logged_datetime(record.get("dtm"))
         output: dict[str, Any] = {
             "dtm": dtm.astimezone(timezone.utc)
@@ -1476,7 +1375,6 @@ class NE300(NEPH):
             "4035": int(record.get(4035, 0)),
             "2002": int(record.get(2002, 0)),
         }
-
         for parameter in self.logged_parameter_ids:
             value = record.get(parameter)
             output[str(parameter)] = "" if value is None else value
@@ -1509,7 +1407,6 @@ class NE300(NEPH):
             raise ValueError(
                 f"ACOEM timestamp year out of range: {dtm.year}"
             )
-
         packed = year
         packed = packed * 16 + dtm.month
         packed = packed * 32 + dtm.day
