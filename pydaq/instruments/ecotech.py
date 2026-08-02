@@ -23,6 +23,7 @@ import time
 from typing import Any, Iterable, Mapping
 
 from pydaq.instruments.instrument import Instrument, LineComms, TimeBucketAggregator
+from pydaq.utils.status_formatter import format_number
 
 
 class NEPH(Instrument):
@@ -930,6 +931,10 @@ class NEPH(Instrument):
 
 
 class NE300(NEPH):
+    # Successful samples are summarized by the driver at the completed
+    # aggregate/logger-record cadence. The orchestrator must not duplicate them.
+    EMITS_OWN_STATUS = True
+
     """ACOEM NE-300 driver using the instrument's internal data logger."""
 
     # A non-empty bootstrap header ensures that the base class creates a writer.
@@ -1112,12 +1117,60 @@ class NE300(NEPH):
         if self.writer:
             self.writer.finalize_if_needed(now=end)
 
+        # Emit one concise operator-facing line whenever new logger records
+        # were successfully decoded and written.  The full record remains in
+        # state.latest and is available through the dashboard and DEBUG logs.
+        self.logger.info(
+            "[%s] %s",
+            self.name,
+            self._format_compact_logged_summary(latest),
+        )
         self.logger.debug(
             "[%s] appended %d logged record(s), latest=%s",
             self.name,
             len(written),
-            latest.get("dtm"),
+            latest,
         )
+
+    @classmethod
+    def _format_compact_logged_summary(
+        cls,
+        record: Mapping[str, Any],
+    ) -> str:
+        """Return an mkndaq-style compact NE300 operator summary."""
+        mode_value = cls._stdout_int(record.get("4035"))
+        mode = {
+            0: "ambient",
+            1: "zero",
+            2: "span",
+        }.get(mode_value, f"operation-{mode_value}")
+
+        def pair(fullscatter: int, backscatter: int) -> str:
+            return (
+                f"{cls._stdout_number(record.get(str(fullscatter)))}|"
+                f"{cls._stdout_number(record.get(str(backscatter)))}"
+            )
+
+        return (
+            "ssp|bssp (Mm-1) "
+            f"r: {pair(2635000, 2635090)} "
+            f"g: {pair(2525000, 2525090)} "
+            f"b: {pair(2450000, 2450090)} "
+            f"mode={mode}"
+        )
+
+    @staticmethod
+    def _stdout_number(value: Any) -> str:
+        """Format one compact stdout value with at most four significant digits."""
+        return format_number(value, significant_digits=4)
+
+    @staticmethod
+    def _stdout_int(value: Any) -> int:
+        """Convert an output value to int for compact status reporting."""
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return -1
 
     def get_data_log_config(self) -> list[int]:
         """Return parameter IDs configured in the NE-300 data logger."""
@@ -1242,7 +1295,11 @@ class NE300(NEPH):
                             omitted.append(parameter)
                         else:
                             seen.add(parameter)
-                    self.logger.info(
+                    # This is a protocol/schema diagnostic, not an
+                    # operator-facing sample message. Command 7 repeats the
+                    # same packet header on every retrieval, so INFO would
+                    # clutter stdout once per acquisition cycle.
+                    self.logger.debug(
                         "[%s] command-7 packet header fields=%d "
                         "output_fields=%d omitted=%s",
                         self.name,
