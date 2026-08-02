@@ -9,11 +9,15 @@ from typing import Any, cast
 
 import pytest
 
+import pytest
+
 from pydaq.instruments.ecotech import NE300, NEPH
 from pydaq.instruments.registry import get_driver_class
 from pydaq.utils.storage_handler import HourlyCsvWriter
 
 
+# Parameter columns found in the MKN NE300 files collected on 2026-08-01.
+# These are used as expected output columns, not as a driver default.
 # Parameter columns found in the MKN NE300 files collected on 2026-08-01.
 # These are used as expected output columns, not as a driver default.
 MKN_20260801_LOGGED_PARAMETER_IDS = [
@@ -65,6 +69,15 @@ COMMAND7_PARAMETER_IDS_WITH_METADATA = [
     *MKN_20260801_LOGGED_PARAMETER_IDS,
 ]
 
+# Regression fixture for the live failure ``header=37 record=38``.  Command 7
+# may include a parameter ID that is already represented by the fixed record
+# preamble.  It still occupies a value position in the packet, but must not
+# become a duplicate output column.
+COMMAND7_PARAMETER_IDS_WITH_METADATA = [
+    4035,
+    *MKN_20260801_LOGGED_PARAMETER_IDS,
+]
+
 
 def _bare_ne300() -> NE300:
     driver = cast(NE300, NE300.__new__(NE300))
@@ -73,6 +86,9 @@ def _bare_ne300() -> NE300:
             "name": "ne300",
             "logger": logging.getLogger("test.ecotech.ne300"),
             "writer": None,
+            # Deliberately provisional: every command-7 packet must be able to
+            # replace this with the header transmitted by the instrument.
+            "logged_parameter_ids": [999999],
             # Deliberately provisional: every command-7 packet must be able to
             # replace this with the header transmitted by the instrument.
             "logged_parameter_ids": [999999],
@@ -102,18 +118,24 @@ def _command_7_frame(
     *,
     dtm: datetime,
     parameter_ids: list[int] | None = None,
+    parameter_ids: list[int] | None = None,
     current_operation: int = 0,
     logging_period: int = 60,
 ) -> bytes:
     packet_parameter_ids = list(
         parameter_ids or MKN_20260801_LOGGED_PARAMETER_IDS
     )
+    packet_parameter_ids = list(
+        parameter_ids or MKN_20260801_LOGGED_PARAMETER_IDS
+    )
     header_words = [
         parameter.to_bytes(4, byteorder="big")
+        for parameter in packet_parameter_ids
         for parameter in packet_parameter_ids
     ]
     value_words = [
         struct.pack(">f", float(index) + 0.25)
+        for index, _ in enumerate(packet_parameter_ids)
         for index, _ in enumerate(packet_parameter_ids)
     ]
     timestamp = int.from_bytes(
@@ -169,11 +191,42 @@ def test_command_7_header_generates_output_schema() -> None:
         ],
     ]
     assert len(driver.HEADERS) == 40
+def test_command_7_header_generates_output_schema() -> None:
+    driver = _bare_ne300()
+    dtm = datetime(2026, 8, 1, 0, 0, tzinfo=timezone.utc)
+
+    driver._decode_logged_data_response(
+        _command_7_frame(
+            driver,
+            dtm=dtm,
+            parameter_ids=COMMAND7_PARAMETER_IDS_WITH_METADATA,
+        )
+    )
+
+    assert len(COMMAND7_PARAMETER_IDS_WITH_METADATA) == 38
+    assert driver.logged_parameter_ids == MKN_20260801_LOGGED_PARAMETER_IDS
+    assert driver.HEADERS == [
+        "dtm",
+        "4035",
+        "2002",
+        *[
+            str(parameter)
+            for parameter in MKN_20260801_LOGGED_PARAMETER_IDS
+        ],
+    ]
+    assert len(driver.HEADERS) == 40
 
 
 def test_command_7_decodes_38_packet_fields_to_40_output_columns() -> None:
+def test_command_7_decodes_38_packet_fields_to_40_output_columns() -> None:
     driver = _bare_ne300()
     dtm = datetime(2026, 8, 1, 0, 0, tzinfo=timezone.utc)
+    response = _command_7_frame(
+        driver,
+        dtm=dtm,
+        parameter_ids=COMMAND7_PARAMETER_IDS_WITH_METADATA,
+        current_operation=7,
+    )
     response = _command_7_frame(
         driver,
         dtm=dtm,
@@ -191,7 +244,14 @@ def test_command_7_decodes_38_packet_fields_to_40_output_columns() -> None:
     # the value occupying the packet position for parameter 4035 is consumed
     # but must not overwrite current_operation or add another column.
     assert record[4035] == 7
+
+    # The fixed command-7 preamble is authoritative for these metadata values;
+    # the value occupying the packet position for parameter 4035 is consumed
+    # but must not overwrite current_operation or add another column.
+    assert record[4035] == 7
     assert record[2002] == 60
+    assert record[2635000] == 1.25
+    assert record[6450090] == 37.25
     assert record[2635000] == 1.25
     assert record[6450090] == 37.25
 
@@ -208,6 +268,7 @@ def test_command_7_decodes_38_packet_fields_to_40_output_columns() -> None:
     assert list(formatted) == expected_headers
     assert len(formatted) == 40
     assert formatted["dtm"] == "2026-08-01 00:00:00"
+    assert formatted["4035"] == 7
     assert formatted["4035"] == 7
     assert formatted["2002"] == 60
 
@@ -273,6 +334,12 @@ def test_complete_record_is_written_with_all_40_columns(
     driver.writer = writer
     dtm = datetime(2026, 8, 1, 0, 0, tzinfo=timezone.utc)
     record = driver._decode_logged_data_response(
+        _command_7_frame(
+            driver,
+            dtm=dtm,
+            parameter_ids=COMMAND7_PARAMETER_IDS_WITH_METADATA,
+            current_operation=7,
+        )
         _command_7_frame(
             driver,
             dtm=dtm,

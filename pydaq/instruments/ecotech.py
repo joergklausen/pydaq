@@ -26,6 +26,7 @@ from pydaq.instruments.instrument import Instrument, LineComms, TimeBucketAggreg
 from pydaq.utils.status_formatter import format_number
 
 
+
 class NEPH(Instrument):
     """Driver for Aurora 3000 and NE-300 nephelometers."""
 
