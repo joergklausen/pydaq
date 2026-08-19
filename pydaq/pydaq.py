@@ -68,6 +68,7 @@ class Orchestrator:
         self.instruments: Dict[str, Instrument] = {}
         self._instrument_config_fingerprints: Dict[str, str] = {}
         self._last_status_sample_ts: Dict[str, float] = {}
+        self._last_no_sample_notice: Dict[str, str] = {}
 
         self.transfer_handler: Optional[TransferHandler] = None
 
@@ -193,15 +194,17 @@ class Orchestrator:
             kind = str(self._io_get(io_cfg, "kind", "") or "").lower()
             port = self._io_get(io_cfg, "port")
 
-            tcpish = kind in {"socket", "tcp"}
+            # 0.0.0.0/:: are local bind addresses, not remote instrument
+            # endpoints. UDP inputs such as FIDAS are listeners and cannot be
+            # meaningfully tested with a TCP/ICMP reachability probe here.
+            host_text = str(host).strip()
             udpish = kind in {"udp", "udp_socket", "datagram"}
+            if host_text in {"0.0.0.0", "::", "*"} or udpish:
+                continue
+
+            tcpish = kind in {"socket", "tcp"}
             use_port = int(port) if (tcpish and port is not None) else None
             method = "auto" if use_port is not None else "icmp"
-
-            # For UDP-based devices, avoid misleading TCP probes.
-            if udpish:
-                use_port = None
-                method = "icmp"
             targets.append(
                 ReachabilityTarget(
                     name=name,
@@ -230,10 +233,25 @@ class Orchestrator:
         self.logger.info("[net] monitor targets updated=%d", len(targets))
 
     def _network_monitor_tick(self) -> None:
-        """Scheduled hook: run one reachability sweep (never raises)."""
+        """Scheduled hook: run one reachability sweep (never raises).
+
+        If a driver has already reported an instrument unavailable, seed the
+        monitor's first state as DOWN.  This prevents a second, redundant
+        startup warning one minute later while preserving later DOWN/UP state
+        changes from the independent reachability monitor.
+        """
         if not self._network_monitor:
             return
         try:
+            for target in self._network_monitor.targets:
+                instrument = self.instruments.get(target.name)
+                if not instrument or not instrument.state.last_error:
+                    continue
+                key = self._network_monitor._key(target)
+                if key not in self._network_monitor._state:
+                    self._network_monitor._state[key] = False
+                    self._network_monitor._ticks[key] = 0
+
             self._network_monitor.check_all()
         except Exception as exc:
             # Never let reachability monitoring break the acquisition loop.
@@ -372,6 +390,7 @@ class Orchestrator:
 
         state = instrument.state
         if state.latest:
+            self._last_no_sample_notice.pop(instrument_name, None)
             self.logger.debug("[%s] latest=%s", instrument_name, state.latest)
 
             if getattr(instrument, "EMITS_OWN_STATUS", False):
@@ -392,18 +411,18 @@ class Orchestrator:
             return
 
         if state.last_error:
-            self.logger.error(
-                "[%s] no sample available yet; last_error=%s",
-                instrument_name,
-                state.last_error,
-            )
+            # Worker exceptions are already surfaced immediately. Drivers may
+            # also set last_error directly; report those once here.
+            if getattr(state, "last_error_reported", "") != state.last_error:
+                self.logger.error("[%s] %s", instrument_name, state.last_error)
+                state.last_error_reported = state.last_error
             return
 
         if state.last_sample_ts <= 0:
-            self.logger.warning(
-                "[%s] no sample available yet",
-                instrument_name,
-            )
+            notice = "no sample available yet"
+            if self._last_no_sample_notice.get(instrument_name) != notice:
+                self.logger.warning("[%s] %s", instrument_name, notice)
+                self._last_no_sample_notice[instrument_name] = notice
             return
 
         age_seconds = max(0.0, time.time() - state.last_sample_ts)
@@ -530,6 +549,7 @@ class Orchestrator:
         schedule.clear(f"instrument:{instrument_name}")
         self._instrument_config_fingerprints.pop(instrument_name, None)
         self._last_status_sample_ts.pop(instrument_name, None)
+        self._last_no_sample_notice.pop(instrument_name, None)
         if instrument:
             instrument.set_enabled(False)
             instrument.stop()

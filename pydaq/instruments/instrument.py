@@ -72,6 +72,7 @@ class InstrumentState:
     enabled: bool = True
     last_sample_ts: float = 0.0
     last_error: str = ""
+    last_error_reported: str = ""
     latest: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -493,6 +494,8 @@ class Instrument:
         self._state_lock = Lock()
         self._consecutive_empty_records = 0
         self.empty_record_is_ok = False
+        # Per-task signature used to suppress repeated identical operator errors.
+        self._last_task_error_signatures: Dict[str, str] = {}
 
         self.writer: Optional[HourlyCsvWriter] = None
         if headers:
@@ -553,19 +556,100 @@ class Instrument:
         """
         self._task_queue.put(lambda: transmit_callable(self.name))
 
+    @staticmethod
+    def _task_label(task: Callable[[], None]) -> str:
+        name = getattr(task, "__name__", "task")
+        return {
+            "initialize": "initialization",
+            "append_record": "acquisition",
+            "rollover": "rollover",
+        }.get(name, name.replace("_", " "))
+
+    def _configured_endpoint(self) -> str:
+        io_cfg = self.parameters.get("io", {}) if isinstance(self.parameters, dict) else {}
+        if not isinstance(io_cfg, dict):
+            return ""
+
+        kind = str(io_cfg.get("kind", io_cfg.get("type", "")) or "").strip().lower()
+        host = str(io_cfg.get("host", io_cfg.get("ip", "")) or "").strip()
+        port = io_cfg.get("port", io_cfg.get("port_tcp"))
+        device = str(io_cfg.get("device", "") or "").strip()
+
+        if host:
+            endpoint = host + (f":{port}" if port not in (None, "") else "")
+            transport = "tcp" if kind in {"socket", "tcp", "tcpip"} else (kind or "tcp")
+            return f"{transport} {endpoint}"
+        if kind == "serial" or device or (isinstance(port, str) and port.upper().startswith("COM")):
+            serial_port = str(port or device or "").strip()
+            return f"serial {serial_port}".strip()
+        return ""
+
+    def _operator_error(self, task: Callable[[], None], exc: Exception) -> str:
+        """Return a concise, operator-facing description of a worker failure."""
+        label = self._task_label(task)
+        endpoint = self._configured_endpoint()
+        where = f" {endpoint}" if endpoint else ""
+        text = str(exc).strip()
+
+        if isinstance(exc, TimeoutError):
+            return f"unavailable:{where} timed out during {label}"
+        if isinstance(exc, ConnectionRefusedError):
+            return f"unavailable:{where} connection refused during {label}"
+        if isinstance(exc, PermissionError):
+            detail = "access denied" if not text else text
+            return f"unavailable:{where} {detail} during {label}"
+        if isinstance(exc, (ConnectionError, OSError)):
+            detail = text or exc.__class__.__name__
+            return f"unavailable:{where} {detail} during {label}"
+
+        detail = f"{exc.__class__.__name__}: {text}" if text else exc.__class__.__name__
+        return f"software/protocol error during {label}: {detail}"
+
     def _worker_loop(self) -> None:
-        """Worker thread loop: execute queued tasks."""
+        """Worker thread loop: execute queued tasks with compact operator errors."""
         while not self._stop_event.is_set():
             try:
                 task = self._task_queue.get(timeout=0.5)
             except Empty:
                 continue
+
+            task_name = getattr(task, "__name__", "task")
             try:
                 task()
+                # A later success of the same task means an identical future error
+                # should be surfaced again rather than suppressed forever.
+                self._last_task_error_signatures.pop(task_name, None)
             except Exception as exc:
+                operator_error = self._operator_error(task, exc)
+                signature = f"{exc.__class__.__name__}:{exc}"
+                repeated = self._last_task_error_signatures.get(task_name) == signature
+                self._last_task_error_signatures[task_name] = signature
+
                 with self._state_lock:
-                    self.state.last_error = str(exc)
-                self.logger.exception("task failed")
+                    self.state.last_error = operator_error
+                    self.state.last_error_reported = operator_error if repeated else ""
+
+                if repeated:
+                    # Preserve diagnostics for DEBUG/file logging without flooding
+                    # an INFO/ERROR console every acquisition cycle.
+                    self.logger.debug(
+                        "[%s] %s (repeated)",
+                        self.name,
+                        operator_error,
+                        exc_info=True,
+                    )
+                else:
+                    # The custom console handler suppresses traceback text for this
+                    # record, while the rotating file handler still gets exc_info.
+                    self.logger.error(
+                        "[%s] %s",
+                        self.name,
+                        operator_error,
+                        exc_info=True,
+                        extra={"console_compact": True},
+                    )
+                    with self._state_lock:
+                        self.state.last_error_reported = operator_error
             finally:
                 self._task_queue.task_done()
 
@@ -626,6 +710,7 @@ class Instrument:
             self.state.latest = record
             self.state.last_sample_ts = time.time()
             self.state.last_error = ""
+            self.state.last_error_reported = ""
 
         if previous_empty:
             self.logger.info("recovered after %s empty acquisition cycle(s)", previous_empty)

@@ -22,6 +22,35 @@ def _log_level(value: str, default: int = logging.INFO) -> int:
     return level if isinstance(level, int) else default
 
 
+
+
+class CompactConsoleHandler(logging.StreamHandler):
+    """Console handler that can suppress traceback text for selected records.
+
+    Records logged with ``extra={"console_compact": True}`` still retain their
+    ``exc_info`` for subsequent handlers (notably the rotating file handler),
+    while the interactive console receives only the concise operator message.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if not getattr(record, "console_compact", False):
+            super().emit(record)
+            return
+
+        exc_info = record.exc_info
+        exc_text = record.exc_text
+        stack_info = record.stack_info
+        try:
+            record.exc_info = None
+            record.exc_text = None
+            record.stack_info = None
+            super().emit(record)
+        finally:
+            record.exc_info = exc_info
+            record.exc_text = exc_text
+            record.stack_info = stack_info
+
+
 def setup_logging(
     log_directory: Path,
     file_name: str,
@@ -73,7 +102,7 @@ def setup_logging(
         "%(asctime)s, %(levelname)s, %(name)s, %(message)s"
     )
 
-    console_handler = logging.StreamHandler()
+    console_handler = CompactConsoleHandler()
     console_handler.setLevel(_log_level(level_console))
     console_handler.setFormatter(formatter)
 
