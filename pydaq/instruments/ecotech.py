@@ -26,7 +26,6 @@ from pydaq.instruments.instrument import Instrument, LineComms, TimeBucketAggreg
 from pydaq.utils.status_formatter import format_number
 
 
-
 class NEPH(Instrument):
     """Driver for Aurora 3000 and NE-300 nephelometers."""
 
@@ -938,6 +937,23 @@ class NE300(NEPH):
 
     """ACOEM NE-300 driver using the instrument's internal data logger."""
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Create all lifecycle state before any worker task can run.
+
+        ``initialize()`` performs instrument IO and may fail. Structural state
+        used by scheduled tasks must therefore exist before initialization so
+        a failed init cannot trigger a secondary AttributeError on every sample
+        cycle and mask the original error.
+        """
+        super().__init__(*args, **kwargs)
+        self.logged_chunk_seconds = 3600
+        self.logged_overlap_seconds = 60
+        self.logged_parameter_ids: list[int] = []
+        self.logged_packet_parameter_ids: list[int] = []
+        self._logged_cursor = self._floor_to_minute(datetime.now(timezone.utc))
+        self._last_logged_dtm: datetime | None = None
+        self._ne300_initialized = False
+
     # A non-empty bootstrap header ensures that the base class creates a writer.
     # It is replaced by command 6, and authoritatively by command 7, before rows
     # are appended. No fixed logged-parameter list is assumed.
@@ -945,6 +961,10 @@ class NE300(NEPH):
 
     def initialize(self) -> None:
         """Initialize ACOEM communications and logged-data retrieval."""
+        # Set the readiness flag only after the complete initialization path
+        # succeeds. If anything below raises, append_record() will skip reads
+        # and preserve the original initialization error in InstrumentState.
+        self._ne300_initialized = False
         super().initialize()
 
         if self.protocol != "acoem":
@@ -985,8 +1005,8 @@ class NE300(NEPH):
 
         # An explicitly configured list may be used provisionally. The command-7
         # packet header remains authoritative for positional decoding and output.
-        self.logged_parameter_ids: list[int] = []
-        self.logged_packet_parameter_ids: list[int] = []
+        self.logged_parameter_ids = []
+        self.logged_packet_parameter_ids = []
         if "parameters" in data_log_cfg:
             self._set_logged_parameter_ids(
                 data_log_cfg["parameters"],
@@ -1039,12 +1059,23 @@ class NE300(NEPH):
             self.logged_chunk_seconds,
             self.logged_overlap_seconds,
         )
+        self._ne300_initialized = True
 
     def append_record(self) -> None:
         """Retrieve and append every newly logged NE-300 record."""
         with self._state_lock:
             if not self.state.enabled:
                 return
+
+        if not self._ne300_initialized:
+            # Initialization is queued separately from sampling. If initialization
+            # failed (or has not completed yet), do not raise a secondary error:
+            # the worker has already stored the original failure in state.last_error.
+            self.logger.debug(
+                "[%s] logged-data read skipped; initialization incomplete",
+                self.name,
+            )
+            return
 
         end = self._floor_to_minute(datetime.now(timezone.utc))
         cursor = self._logged_cursor

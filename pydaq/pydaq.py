@@ -519,8 +519,10 @@ class Orchestrator:
                     instrument_config.driver,
                 )
             else:
+                # The instrument configuration is unchanged. Keep its existing
+                # jobs and initialized driver state. Rescheduling here used to
+                # enqueue initialize() again on every unrelated config reload.
                 existing.set_enabled(True)
-                self._schedule_instrument_jobs(instrument_config, existing)
 
     def _disable_instrument(self, instrument_name: str, reason: str) -> None:
         """Stop an instrument and remove its scheduled jobs."""
