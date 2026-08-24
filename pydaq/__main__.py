@@ -1,35 +1,51 @@
-"""Module entry point.
-
-Example:
-    python -m pydaq -c pydaq/configs/mkn.yml
-    python -m pydaq -c pydaq/configs/buc.yml
-"""
+"""Command-line entry point for pydaq."""
 
 from __future__ import annotations
 
 import argparse
-import logging
+import sys
 from pathlib import Path
+from typing import Sequence
 
 from pydaq.pydaq import Orchestrator
+from pydaq.utils.single_instance_lock import AlreadyRunningError, SingleInstanceLock
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(prog="pydaq", description="PYDAQ data acquisition system for atmospheric monitoring")
+def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the pydaq data acquisition system.")
     parser.add_argument(
         "-c",
         "--config",
-        type=Path,
-        default=Path("pydaq/configs/nrb.yml"),
-        help="Path to station YAML config (e.g. pydaq/configs/nrb.yml)",
+        required=True,
+        help="Path to the station YAML configuration file.",
     )
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parse_args(argv)
+    config_path = Path(args.config).expanduser().resolve(strict=False)
+
+    # Acquire the application lock before constructing Orchestrator.  This is
+    # deliberately earlier than logging setup, transfer self-test, dashboard
+    # startup, or instrument initialization, because all of those resources may
+    # conflict with an already-running pydaq process.
+    lock = SingleInstanceLock(config_path)
+    try:
+        lock.acquire()
+    except AlreadyRunningError as exc:
+        # Do not use pydaq logging here: the running instance may already own
+        # the rotating log file that this guard is intended to protect.
+        print(f"ERROR: {exc}; exiting.", file=sys.stderr)
+        return 2
 
     try:
-        Orchestrator(config_path=args.config).run_forever()
-    except Exception:
-        logging.getLogger("pydaq").exception("fatal pydaq crash")
-        raise
+        Orchestrator(config_path=config_path).run_forever()
+    finally:
+        lock.release()
+
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

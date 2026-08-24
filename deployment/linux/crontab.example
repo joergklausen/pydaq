@@ -1,0 +1,4 @@
+# Legacy/simple Linux startup option. Keep each cron job on one physical line.
+# Replace paths/config for the station. For a permanently supervised service,
+# systemd is preferable to repeatedly launching pydaq from cron.
+@reboot /home/gaw/Documents/git/pydaq/deployment/linux/pydaq.sh pydaq/configs/nrb.yml >> /home/gaw/Documents/nrb/logs/pydaq-launch.log 2>&1
