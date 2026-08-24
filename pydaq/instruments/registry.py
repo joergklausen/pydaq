@@ -10,8 +10,6 @@ import importlib
 from typing import Type
 
 from pydaq.instruments.instrument import Instrument
-
-
 # Canonical config values. Keep this list intentionally small.
 _DRIVER_MAP: dict[str, str] = {
     "49i": "pydaq.instruments.thermo:Thermo49i",
@@ -31,8 +29,9 @@ _DRIVER_MAP: dict[str, str] = {
     "ne300": "pydaq.instruments.ecotech:NE300",
     "avo": "pydaq.instruments.avo:AVO",
     "meteo": "pydaq.instruments.meteo:METEO",
+    "g2401": "pydaq.instruments.picarro:G2401",
+    "picarro": "pydaq.instruments.picarro:G2401",
 }
-
 
 def list_drivers() -> list[str]:
     """Return supported canonical driver names."""
@@ -48,7 +47,6 @@ def _load_class(spec: str) -> Type[Instrument]:
             f"Invalid driver registry entry {spec!r}; "
             "expected 'module:Class'."
         ) from exc
-
     try:
         module = importlib.import_module(module_name)
     except Exception as exc:
@@ -64,7 +62,6 @@ def _load_class(spec: str) -> Type[Instrument]:
             f"Driver class {class_name!r} not found "
             f"in module {module_name!r}."
         ) from exc
-
     if not isinstance(cls, type) or not issubclass(cls, Instrument):
         raise TypeError(
             f"Resolved driver {spec!r} to {cls!r}, "
@@ -72,7 +69,6 @@ def _load_class(spec: str) -> Type[Instrument]:
         )
 
     return cls
-
 
 def get_driver_class(driver: str) -> Type[Instrument]:
     """Resolve a configured driver name to an instrument class."""
@@ -82,7 +78,6 @@ def get_driver_class(driver: str) -> Type[Instrument]:
             "Instrument driver must be a non-empty string. "
             f"Supported drivers: {supported}."
         )
-
     key = driver.strip().lower()
     spec = _DRIVER_MAP.get(key)
     if spec is None:

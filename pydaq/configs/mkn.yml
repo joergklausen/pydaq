@@ -172,6 +172,44 @@ instruments:
     init: {}
     processing: {}
 
+  g2401:
+    enabled: true
+    driver: g2401
+    serial_number: CFKADS2320
+    io:
+      # TCP is used only for the compact operator status line (_Meas_GetConc).
+      kind: tcp
+      host: 192.168.4.102
+      port: 51020
+      timeout_seconds: 5
+      sleep_seconds: 0.5
+
+      # The Picarro data files themselves are authoritative.  pydaq copies
+      # completed files from this source, archives them, zips them and stages
+      # them for the normal transfer handler.  If the current FTP receiver on
+      # the Minix uses a local landing folder, replace only source_path.
+      source_path: '\\192.168.4.102\DataLog_User_Sync'
+      file_pattern: 'CFKADS2320-*-DataLog_User_Sync.dat'
+      buckets: daily
+      days_to_sync: 7
+      min_file_age_seconds: 3600
+      file_scan_every_seconds: 600
+      zip_files: true
+    schedule:
+      # request_reading is the live status poll; the driver internally limits
+      # file scans to file_scan_every_seconds.
+      sample_every_seconds: 30
+      rollover: none
+      transmit_every_seconds: 600
+      transmit_delay_seconds: 15
+      print_every_seconds: 0
+    output:
+      format: files
+      remote_path: g2401
+      remove_on_success: true
+    init: {}
+    processing: {}
+
   ae33:
     enabled: true
     driver: ae33
