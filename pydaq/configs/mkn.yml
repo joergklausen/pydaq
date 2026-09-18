@@ -348,7 +348,7 @@ instruments:
     io:
       kind: http
       urls:
-        roof: https://device.iqair.com/v2/685900f6aa22b24603466e38
+        mkn: https://device.iqair.com/v2/685900f6aa22b24603466e38
       validated: false
       timeout_seconds: 30
       retries: 3
