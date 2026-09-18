@@ -341,3 +341,33 @@ instruments:
       aggregation_period_seconds: 60
       aggregation_timestamp: end
       aggregation_method: mean
+
+  avo:
+    enabled: true
+    driver: avo
+    io:
+      kind: http
+      urls:
+        roof: https://device.iqair.com/v2/685900f6aa22b24603466e38
+      validated: false
+      timeout_seconds: 30
+      retries: 3
+      backoff_seconds: 2
+      verify: true
+    schedule:
+      sample_every_seconds: 3600
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 60
+    output:
+      data_path: avo
+      staging_path: avo
+      remote_path: avo
+      remove_on_success: true
+    processing:
+      datasets:
+        - instant
+        - hourly
+        - daily
+        - monthly
+      append: true
+      remove_duplicates: true
