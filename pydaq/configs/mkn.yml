@@ -61,7 +61,7 @@ network_monitor:
 
 instruments:
   meteo:
-    enabled: false
+    enabled: true
     driver: meteo
     io:
       kind: sftp
@@ -69,16 +69,16 @@ instruments:
       host: 192.168.3.157
       port: 22
       user: admin
-      key: ~/.ssh/mkn-ed25519-20260508
+      key: ~/.ssh/linuxbox_ecdsa
       remote_dir: /home/moxa/data
       pattern: "VRXA00.*"
       known_hosts: ~/.ssh/known_hosts
       accept_unknown_host_key: false
-      connect_timeout_seconds: 10
+      connect_timeout_seconds: 30
       banner_timeout_seconds: 30
-      auth_timeout_seconds: 20
+      auth_timeout_seconds: 30
       min_remote_age_seconds: 60
-      retries: 2
+      retries: 3
       backoff_seconds: 2
     schedule:
       sample_every_seconds: 600
