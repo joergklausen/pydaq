@@ -158,18 +158,8 @@ def format_latest_record(record: Mapping[str, Any]) -> str:
                 f"flow={format_number(flow_lpm, decimal_places=2)} L/min"
             )
 
-        # The AE33 TCP Data-table record contains the instrument estimate of
-        # remaining tape advances immediately after TapeAdvCount. The current
-        # pydaq header calls this field ``unclear_3``.
-        tape_remaining = _first_integer(
-            record,
-            (
-                "TapeAdvRemaining",
-                "TapeAdvanceLeft",
-                "tape_advances_remaining",
-                "unclear_3",
-            ),
-        )
+        # AE33 TCP Data-table field: rough estimate of tape advances remaining.
+        tape_remaining = _integer(record, "TapeAdvLeft")
         if tape_remaining is not None:
             tape_text = f"tape={tape_remaining} left"
             if tape_remaining < 10:
@@ -178,13 +168,11 @@ def format_latest_record(record: Mapping[str, Any]) -> str:
                 tape_text += " LOW"
             parts.append(tape_text)
 
-        # In the current pydaq AE33 TCP header, ``Temp_3`` is actually the
-        # overall AE33 Status field. It is a composite status code, not a
-        # temperature. Prefer a correctly named field when one is available.
-        status_code = _first_integer(
-            record,
-            ("Status", "status", "Temp_3"),
-        )
+        # Overall AE33 composite status. Do not fall back to LedTemp or the
+        # legacy Temp_3 field: Magee documents LedTemp as a separate internal
+        # diagnostic/status code, and interpreting it as Status creates false
+        # operator warnings.
+        status_code = _integer(record, "Status")
         if status_code is not None:
             parts.append(_format_ae33_status(status_code))
 
@@ -209,7 +197,7 @@ def format_latest_record(record: Mapping[str, Any]) -> str:
 
 
 def _format_ae33_status(status_code: int) -> str:
-    """Decode the composite AE33 instrument status code."""
+    """Decode the composite AE33 instrument status code from the manual."""
     if status_code == 0:
         return "status=0 (OK)"
 

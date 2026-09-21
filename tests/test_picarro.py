@@ -7,6 +7,7 @@ import time
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
+from pathlib import PureWindowsPath
 
 import pytest
 
@@ -266,4 +267,6 @@ def test_legacy_netshare_fallback_builds_unc_source(tmp_path: Path) -> None:
             }
         },
     )
-    assert str(driver.source_path) == r"\\192.168.4.102\DataLog_User_Sync"
+    assert PureWindowsPath(str(driver.source_path)) == PureWindowsPath(
+        r"\\192.168.4.102\DataLog_User_Sync"
+)

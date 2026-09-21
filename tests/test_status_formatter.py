@@ -77,8 +77,8 @@ def test_ae33_measurements_are_limited_but_counts_and_status_remain_exact() -> N
             "dtm": "2026-08-01 13:30:00",
             "BC6": "12345",
             "FlowC": "3019",
-            "unclear_3": "200",
-            "Temp_3": "26",
+            "TapeAdvLeft": "200",
+            "Status": "26",
         }
     )
 
