@@ -9,7 +9,6 @@ The config content is conventionally all lower-case, with a few exceptions.
 Secrets should be stored in secret files in special folders (e.g. ``~/.ssh`` or ``~/.secrets``).
 The YAML config can reference these files, and the platform will read their contents at runtime.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,10 +22,8 @@ class ConfigError(ValueError):
     """Raised when the station configuration cannot be parsed or validated."""
 
 
-
 def _expand_user_path(text: str) -> Path:
     return Path(text).expanduser()
-
 
 
 def _require_mapping_value(mapping: Dict[str, Any], key: str, context: str) -> Any:
@@ -56,6 +53,14 @@ class PathsConfig:
 
 
 @dataclass(frozen=True)
+class LogTransferConfig:
+    """Transfer settings for completed rotated application logs."""
+
+    enabled: bool = False
+    remote_path: str = "logs"
+
+
+@dataclass(frozen=True)
 class LoggingConfig:
     """Logging configuration for console and file outputs."""
 
@@ -63,7 +68,8 @@ class LoggingConfig:
     level_file: str = "info"
     file: str = "pydaq.log"
     max_bytes: int = 5_000_000
-    backup_count: int = 5    
+    backup_count: int = 5
+    transfer: LogTransferConfig = LogTransferConfig()
 
 
 @dataclass(frozen=True)
@@ -156,7 +162,6 @@ class ApplicationConfig:
     instruments: Dict[str, InstrumentConfig]
 
 
-
 def _parse_station_config(raw: Dict[str, Any]) -> StationConfig:
     station_id = str(_require_mapping_value(raw, "id", "station")).strip().lower()
     if len(station_id) != 3:
@@ -169,14 +174,12 @@ def _parse_station_config(raw: Dict[str, Any]) -> StationConfig:
     )
 
 
-
 def _parse_paths_config(raw: Dict[str, Any]) -> PathsConfig:
     root = _expand_user_path(str(_require_mapping_value(raw, "root", "paths"))).resolve()
     data = root / str(raw.get("data", "data"))
     outbox = root / str(raw.get("outbox", "outbox"))
     logs = root / str(raw.get("logs", "logs"))
     return PathsConfig(root=root, data=data, outbox=outbox, logs=logs)
-
 
 
 def _parse_logging_config(raw: Dict[str, Any]) -> LoggingConfig:
@@ -189,12 +192,31 @@ def _parse_logging_config(raw: Dict[str, Any]) -> LoggingConfig:
     if backup_count < 0:
         raise ConfigError("logging.backup_count must be >= 0")
 
+    transfer_raw = raw.get("transfer", {}) or {}
+    if not isinstance(transfer_raw, dict):
+        raise ConfigError("logging.transfer must be a mapping")
+
+    transfer_enabled = bool(transfer_raw.get("enabled", False))
+    remote_path = str(transfer_raw.get("remote_path", "logs")).strip().strip("/")
+    if not remote_path:
+        remote_path = "logs"
+
+    if transfer_enabled and (max_bytes <= 0 or backup_count <= 0):
+        raise ConfigError(
+            "logging.transfer.enabled requires logging.max_bytes > 0 "
+            "and logging.backup_count > 0"
+        )
+
     return LoggingConfig(
         level_console=str(raw.get("level_console", "info")).lower(),
         level_file=str(raw.get("level_file", "info")).lower(),
         file=str(raw.get("file", "pydaq.log")),
         max_bytes=max_bytes,
         backup_count=backup_count,
+        transfer=LogTransferConfig(
+            enabled=transfer_enabled,
+            remote_path=remote_path,
+        ),
     )
 
 
@@ -212,7 +234,6 @@ def _parse_main_config(raw: Dict[str, Any]) -> MainConfig:
     )
 
 
-
 def _parse_transfer_config(raw: Dict[str, Any]) -> TransferConfig:
     """Parse transfer configuration."""
     enabled = bool(raw.get("enabled", False))
@@ -222,7 +243,6 @@ def _parse_transfer_config(raw: Dict[str, Any]) -> TransferConfig:
 
     if targets_raw is None:
         targets_raw = {}
-
     if isinstance(targets_raw, list):
         for idx, entry in enumerate(targets_raw):
             if not isinstance(entry, dict):
@@ -249,7 +269,6 @@ def _parse_transfer_config(raw: Dict[str, Any]) -> TransferConfig:
             )
     else:
         raise ConfigError("'transfer.targets' must be a list or mapping")
-
     return TransferConfig(
         enabled=enabled,
         require_all_targets=bool(raw.get("require_all_targets", False)),
@@ -259,7 +278,6 @@ def _parse_transfer_config(raw: Dict[str, Any]) -> TransferConfig:
         max_backoff_seconds=float(raw.get("max_backoff_seconds", 30.0)),
         targets=targets,
     )
-
 
 
 def _parse_instrument_schedule_config(raw: Dict[str, Any]) -> InstrumentScheduleConfig:
@@ -273,14 +291,12 @@ def _parse_instrument_schedule_config(raw: Dict[str, Any]) -> InstrumentSchedule
     )
 
 
-
 def _parse_instrument_output_config(raw: Dict[str, Any]) -> InstrumentOutputConfig:
     return InstrumentOutputConfig(
         format=str(raw.get("format", "csv_zip")).lower(),
         remote_path=str(raw.get("remote_path", "")),
         remove_on_success=bool(raw.get("remove_on_success", True)),
     )
-
 
 
 def load_config(config_path: Path) -> ApplicationConfig:
@@ -291,14 +307,12 @@ def load_config(config_path: Path) -> ApplicationConfig:
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
         raise ConfigError("top-level YAML must be a mapping/dictionary")
-
     station = _parse_station_config(_require_mapping_value(raw, "station", "root"))
     paths = _parse_paths_config(_require_mapping_value(raw, "paths", "root"))
     logging = _parse_logging_config(raw.get("logging", {}) or {})
     main = _parse_main_config(raw.get("main", {}) or {})
     transfer = _parse_transfer_config(raw.get("transfer", {}) or {})
     io = dict(raw.get("io", {}) or {})
-
     instruments_raw = _require_mapping_value(raw, "instruments", "root")
     if not isinstance(instruments_raw, dict):
         raise ConfigError("'instruments' must be a mapping of instrument_name -> config")
@@ -307,14 +321,12 @@ def load_config(config_path: Path) -> ApplicationConfig:
     for instrument_name, instrument_raw in instruments_raw.items():
         if not isinstance(instrument_raw, dict):
             raise ConfigError(f"instruments.{instrument_name} must be a mapping")
-
         enabled = bool(instrument_raw.get("enabled", True))
         driver = str(_require_mapping_value(instrument_raw, "driver", f"instruments.{instrument_name}")).lower()
         io_mapping = dict(_require_mapping_value(instrument_raw, "io", f"instruments.{instrument_name}"))
 
         schedule_raw = dict(_require_mapping_value(instrument_raw, "schedule", f"instruments.{instrument_name}"))
         schedule = _parse_instrument_schedule_config(schedule_raw)
-
         output_raw = dict(instrument_raw.get("output", {}) or {})
         output = _parse_instrument_output_config(output_raw)
 
@@ -323,10 +335,8 @@ def load_config(config_path: Path) -> ApplicationConfig:
 
         raw_id = instrument_raw.get("id")
         instrument_id = None if raw_id is None or raw_id == "" else int(raw_id)
-
         raw_serial_number = instrument_raw.get("serial_number")
         serial_number = None if raw_serial_number is None or raw_serial_number == "" else str(raw_serial_number)
-
         instruments[str(instrument_name).lower()] = InstrumentConfig(
             name=str(instrument_name).lower(),
             enabled=enabled,
@@ -339,7 +349,6 @@ def load_config(config_path: Path) -> ApplicationConfig:
             id=instrument_id,
             serial_number=serial_number,
         )
-
     return ApplicationConfig(
         station=station,
         paths=paths,

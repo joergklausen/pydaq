@@ -3,7 +3,6 @@ from __future__ import annotations
 """Main orchestrator for one station instance.
 
 The orchestrator is intentionally built around the lightweight ``schedule`` library.
-
 Responsibilities:
 - Load YAML configuration into a validated config model.
 - Start/stop instruments and allow runtime enable/disable by **hot-reloading** the config file.
@@ -13,7 +12,6 @@ Threading model:
 - The scheduler loop runs in the main thread.
 - Each instrument has a dedicated worker thread and task queue.
 - The scheduler *enqueues* work; it does not perform IO directly.
-
 This separation prevents one stuck instrument from blocking the entire application.
 """
 
@@ -26,15 +24,20 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import schedule
-
 from pydaq.dashboard import start_dashboard
 from pydaq.instruments.instrument import Instrument
 from pydaq.instruments.registry import get_driver_class
 from pydaq.utils.config_handler import ApplicationConfig, InstrumentConfig, load_config
-from pydaq.utils.logging_handler import setup_logging
+from pydaq.utils.logging_handler import (
+    configure_log_archive_directory,
+    setup_logging,
+)
 from pydaq.utils.network_monitor import NetworkMonitor, ReachabilityTarget
 from pydaq.utils.status_formatter import format_latest_record
 from pydaq.utils.transfer_handler import S3Target, SftpTarget, TransferHandler, TransferTarget
+
+
+_LOG_OUTBOX_NAME = "logs"
 
 
 def _fingerprint_configuration(value) -> str:
@@ -55,6 +58,7 @@ class Orchestrator:
 
     Args:
         config_path: Path to the station YAML configuration file.
+
     Notes:
         The orchestrator watches the config file's mtime and reloads it periodically.
         Changes to an instrument's config cause that instrument to be recreated and rescheduled.
@@ -69,7 +73,6 @@ class Orchestrator:
         self._instrument_config_fingerprints: Dict[str, str] = {}
         self._last_status_sample_ts: Dict[str, float] = {}
         self._last_no_sample_notice: Dict[str, str] = {}
-
         self.transfer_handler: Optional[TransferHandler] = None
 
         self._dashboard_server = None
@@ -78,6 +81,13 @@ class Orchestrator:
         self._network_monitor: Optional[NetworkMonitor] = None
 
         self._load_initial_configuration()
+
+    @staticmethod
+    def _log_archive_directory(config: ApplicationConfig) -> Path | None:
+        """Return the log-transfer outbox when rotated-log transfer is enabled."""
+        if not config.logging.transfer.enabled:
+            return None
+        return config.paths.outbox / _LOG_OUTBOX_NAME
 
     def _load_initial_configuration(self) -> None:
         """Load config, initialize logging, and schedule main-level jobs."""
@@ -90,6 +100,7 @@ class Orchestrator:
             level_file=self.application_config.logging.level_file,
             max_bytes=self.application_config.logging.max_bytes,
             backup_count=self.application_config.logging.backup_count,
+            archive_directory=self._log_archive_directory(self.application_config),
         )
         self.logger.info(
             "=== PYDAQ started (station=%s config=%s)",
@@ -102,7 +113,6 @@ class Orchestrator:
             self.application_config.paths.logs,
         ):
             directory.mkdir(parents=True, exist_ok=True)
-
         self.transfer_handler = self._build_transfer_handler(self.application_config)
 
         # Startup check: verify SFTP/S3 connectivity + permissions (best-effort).
@@ -111,7 +121,6 @@ class Orchestrator:
 
         if self.application_config.main.dashboard.enabled:
             self._start_dashboard()
-
         # Reachability monitoring for LAN-connected instruments (derived from config).
         self._refresh_network_monitor(self.application_config)
         schedule.every(60).seconds.do(self._network_monitor_tick).tag("main:net_monitor")
@@ -190,10 +199,8 @@ class Orchestrator:
             host = self._io_get(io_cfg, "host")
             if not host:
                 continue
-
             kind = str(self._io_get(io_cfg, "kind", "") or "").lower()
             port = self._io_get(io_cfg, "port")
-
             # 0.0.0.0/:: are local bind addresses, not remote instrument
             # endpoints. UDP inputs such as FIDAS are listeners and cannot be
             # meaningfully tested with a TCP/ICMP reachability probe here.
@@ -201,7 +208,6 @@ class Orchestrator:
             udpish = kind in {"udp", "udp_socket", "datagram"}
             if host_text in {"0.0.0.0", "::", "*"} or udpish:
                 continue
-
             tcpish = kind in {"socket", "tcp"}
             use_port = int(port) if (tcpish and port is not None) else None
             method = "auto" if use_port is not None else "icmp"
@@ -228,7 +234,6 @@ class Orchestrator:
             )
             self.logger.info("[net] monitor enabled targets=%d", len(targets))
             return
-
         self._network_monitor.set_targets(targets, prune_state=True)
         self.logger.info("[net] monitor targets updated=%d", len(targets))
 
@@ -236,7 +241,7 @@ class Orchestrator:
         """Scheduled hook: run one reachability sweep (never raises).
 
         If a driver has already reported an instrument unavailable, seed the
-        monitor's first state as DOWN.  This prevents a second, redundant
+        monitor's first state as DOWN. This prevents a second, redundant
         startup warning one minute later while preserving later DOWN/UP state
         changes from the independent reachability monitor.
         """
@@ -251,7 +256,6 @@ class Orchestrator:
                 if key not in self._network_monitor._state:
                     self._network_monitor._state[key] = False
                     self._network_monitor._ticks[key] = 0
-
             self._network_monitor.check_all()
         except Exception as exc:
             # Never let reachability monitoring break the acquisition loop.
@@ -306,7 +310,6 @@ class Orchestrator:
                 f"[{instrument_config.name}] failed to load driver "
                 f"{instrument_config.driver!r}: {exc}"
             ) from exc
-
         data_directory = (
             self.application_config.paths.data / instrument_config.name
         )
@@ -315,7 +318,6 @@ class Orchestrator:
         )
         data_directory.mkdir(parents=True, exist_ok=True)
         outbox_directory.mkdir(parents=True, exist_ok=True)
-
         # Pass the full validated instrument config so fields like id and
         # serial_number survive.
         driver_parameters = asdict(instrument_config)
@@ -363,7 +365,6 @@ class Orchestrator:
                 self._log_latest_for_instrument,
                 instrument_config.name,
             ).tag(tag)
-
         if self._transfer_is_enabled() and self.application_config:
 
             def transmit_job():
@@ -387,7 +388,6 @@ class Orchestrator:
         instrument = self.instruments.get(instrument_name)
         if not instrument:
             return
-
         state = instrument.state
         if state.latest:
             self._last_no_sample_notice.pop(instrument_name, None)
@@ -400,7 +400,6 @@ class Orchestrator:
             previous_ts = self._last_status_sample_ts.get(instrument_name)
             if sample_ts > 0 and previous_ts == sample_ts:
                 return
-
             self.logger.info(
                 "[%s] %s",
                 instrument_name,
@@ -409,7 +408,6 @@ class Orchestrator:
             if sample_ts > 0:
                 self._last_status_sample_ts[instrument_name] = sample_ts
             return
-
         if state.last_error:
             # Worker exceptions are already surfaced immediately. Drivers may
             # also set last_error directly; report those once here.
@@ -417,14 +415,12 @@ class Orchestrator:
                 self.logger.error("[%s] %s", instrument_name, state.last_error)
                 state.last_error_reported = state.last_error
             return
-
         if state.last_sample_ts <= 0:
             notice = "no sample available yet"
             if self._last_no_sample_notice.get(instrument_name) != notice:
                 self.logger.warning("[%s] %s", instrument_name, notice)
                 self._last_no_sample_notice[instrument_name] = notice
             return
-
         age_seconds = max(0.0, time.time() - state.last_sample_ts)
         self.logger.error(
             "[%s] latest sample is stale age_seconds=%.1f",
@@ -451,7 +447,7 @@ class Orchestrator:
         )
 
     def _transfer_scan_all(self) -> None:
-        """Periodic scan of all outboxes."""
+        """Periodic scan of instrument outboxes and rotated application logs."""
         if not self.transfer_handler or not self.application_config:
             return
         instrument_remote_path_map = {
@@ -462,6 +458,14 @@ class Orchestrator:
             name: bool(cfg.output.remove_on_success)
             for name, cfg in self.application_config.instruments.items()
         }
+
+        log_transfer = self.application_config.logging.transfer
+        if log_transfer.enabled:
+            instrument_remote_path_map[_LOG_OUTBOX_NAME] = (
+                log_transfer.remote_path or _LOG_OUTBOX_NAME
+            )
+            instrument_remove_on_success_map[_LOG_OUTBOX_NAME] = True
+
         self.transfer_handler.transmit_all(
             instrument_remote_path_map,
             instrument_remove_on_success_map,
@@ -503,7 +507,6 @@ class Orchestrator:
                     instrument_name,
                     reason="removed from config",
                 )
-
         for instrument_name, instrument_config in desired_instruments.items():
             fingerprint = _fingerprint_configuration(asdict(instrument_config))
             existing = self.instruments.get(instrument_name)
@@ -575,6 +578,10 @@ class Orchestrator:
             return
         self._config_mtime_seconds = mtime
         self.application_config = new_config
+        configure_log_archive_directory(
+            self.logger,
+            self._log_archive_directory(new_config),
+        )
         self.logger.info("config reloaded: %s", self.config_path)
         self.transfer_handler = self._build_transfer_handler(new_config)
         self._apply_configuration(new_config)
