@@ -76,6 +76,13 @@ AE31_HEADERS: List[str] = [
 ]
 
 
+# AE33 TCP/IP ``FETCH Data`` table order.
+#
+# This is the database-table order returned by the TCP protocol. It differs
+# from the ordinary exported .dat-file order documented in the AE33 manual.
+# The names below are based on the manual's TCP example (section 10.2), the
+# documented exported fields (section 12.1), and the diagnostic/status value
+# definitions (sections 8.1 and 8.2).
 AE33_DATA_HEADERS: List[str] = [
     "Inst_SN",
     "row_id",
@@ -132,22 +139,22 @@ AE33_DATA_HEADERS: List[str] = [
     "K5",
     "K6",
     "K7",
-    "unclear_2",
-    "Pres",
-    "Temp",
+    "BB",
+    "Pressure",
+    "Temperature",
     "Flow1",
     "Flow2",
     "FlowC",
-    "Temp_1",
-    "Temp_2",
-    "Temp_3",
-    "Stat_1",
-    "Stat_2",
-    "Stat_3",
-    "Stat_4",
-    "Stat_5",
+    "ContTemp",
+    "SupplyTemp",
+    "LedTemp",
+    "ContStatus",
+    "LedStatus",
+    "DetectStatus",
+    "ValveStatus",
+    "Status",
     "TapeAdvCount",
-    "unclear_3",
+    "TapeAdvLeft",
     "unclear_4",
     "unclear_5",
     "unclear_6",
@@ -159,6 +166,45 @@ AE33_LOG_HEADERS: List[str] = ["dtm", "raw"]
 
 def _utc_now_string() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _normalize_ae33_datetime(value: str) -> str | None:
+    """Normalize an AE33 database timestamp to pydaq's storage format.
+
+    The AE33 TCP database commonly returns US-style timestamps such as
+    ``7/29/2026 6:06:00 AM``. ``HourlyCsvWriter`` expects an ISO-like
+    timestamp, so normalize the representation without changing the clock
+    time or assigning a timezone that the instrument did not provide.
+
+    Args:
+        value: Timestamp text returned by the AE33.
+
+    Returns:
+        ``YYYY-MM-DD HH:MM:SS`` when recognized, otherwise ``None``.
+    """
+    text = value.strip()
+    if not text:
+        return None
+
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return parsed.strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        pass
+
+    for timestamp_format in (
+        "%m/%d/%Y %I:%M:%S %p",
+        "%m/%d/%Y %H:%M:%S",
+        "%Y/%m/%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+    ):
+        try:
+            parsed = datetime.strptime(text, timestamp_format)
+        except ValueError:
+            continue
+        return parsed.strftime("%Y-%m-%d %H:%M:%S")
+
+    return None
 
 
 def _clone_writer_config(base: Any, **overrides: Any) -> Any:
@@ -407,10 +453,16 @@ class AE31(MageeBase):
 class AE33(MageeBase):
     """Magee AE33 TCP/IP driver.
 
-    The driver mirrors the original acquisition idea: fetch raw rows from the instrument's
-    ``Data`` and ``Log`` tables and add only stable headers needed by pydaq storage. The
-    ``Data`` table uses the requested acquisition header, while the ``Log`` table is stored as
-    raw lines with a PC acquisition timestamp.
+    The driver fetches rows from the instrument's ``Data`` and ``Log`` tables.
+    The ``Data`` table uses the verified AE33 TCP database-field mapping. Its
+    ``dtm`` timestamp is normalized to the ISO-like form required by pydaq
+    storage; the remaining values are retained as reported by the instrument.
+    The ``Log`` table is stored as raw lines with a PC acquisition timestamp.
+
+    ``get_record()`` is deliberately non-destructive: it peeks at the current
+    Data-table row without advancing the persistence cursor. Only
+    ``append_record()`` advances the Data/Log cursors after successful parsing,
+    so a status/display read cannot consume a row before it is stored.
     """
 
     HEADERS = AE33_DATA_HEADERS
@@ -486,16 +538,33 @@ class AE33(MageeBase):
             self._set_datetime()
 
     def get_record(self) -> Dict[str, Any]:
-        records = self._fetch_new_table_records(table="Data", table_kind="data", latest_only=True)
-        return records[-1] if records else {}
+        """Return the latest Data-table row without advancing storage cursors."""
+        try:
+            maxid_text = self._tcpip_comm("MAXID Data", tidy=True)
+            if not maxid_text:
+                self._set_last_error("AE33 MAXID Data returned an empty response.")
+                return {}
+            maxid = int(maxid_text.strip())
+            rows = self._fetch_table_rows(table="Data", first=maxid, last=maxid)
+            if not rows:
+                self._set_last_error(f"AE33 FETCH Data {maxid} returned no rows.")
+                return {}
+            record = self._parse_data_row(rows[-1])
+        except Exception as exc:
+            self._set_last_error(f"AE33 latest Data read failed: {exc}")
+            self.logger.error("AE33 latest Data read failed: %s", exc)
+            return {}
+
+        self._set_last_error("")
+        return record
 
     def append_record(self) -> None:
         with self._state_lock:
             if not self.state.enabled:
                 return
 
-        data_records = self._fetch_new_table_records(table="Data", table_kind="data", latest_only=False)
-        log_records = self._fetch_new_table_records(table="Log", table_kind="log", latest_only=False)
+        data_records = self._fetch_new_table_records(table="Data", table_kind="data")
+        log_records = self._fetch_new_table_records(table="Log", table_kind="log")
 
         if not data_records and not log_records:
             with self._state_lock:
@@ -542,8 +611,14 @@ class AE33(MageeBase):
         *,
         table: str,
         table_kind: str,
-        latest_only: bool,
     ) -> List[Dict[str, Any]]:
+        """Fetch unseen table rows and advance the cursor only after parsing.
+
+        On startup the driver retrieves up to roughly one day of retained rows,
+        as before. A failed/empty FETCH or an invalid Data row does not advance
+        the corresponding cursor, which allows the next cycle to retry rather
+        than silently losing data.
+        """
         try:
             maxid_text = self._tcpip_comm(f"MAXID {table}", tidy=True)
             if not maxid_text:
@@ -568,19 +643,27 @@ class AE33(MageeBase):
         else:
             if maxid <= last_id:
                 return []
-            first = maxid if latest_only else (last_id + 1)
+            first = last_id + 1
 
-        rows = self._fetch_table_rows(table=table, first=first, last=maxid)
+        try:
+            rows = self._fetch_table_rows(table=table, first=first, last=maxid)
+            if not rows:
+                self._set_last_error(
+                    f"AE33 FETCH {table} {first} {maxid} returned no rows."
+                )
+                return []
+
+            if table_kind == "data":
+                records = [self._parse_data_row(row) for row in rows]
+            else:
+                records = [self._parse_log_row(row) for row in rows]
+        except Exception as exc:
+            self._set_last_error(f"AE33 FETCH {table} parse error: {exc}")
+            self.logger.error("AE33 FETCH %s parse error: %s", table, exc)
+            return []
+
         setattr(self, last_id_attr, maxid)
-
-        if table_kind == "data":
-            records = [self._parse_data_row(row) for row in rows]
-        else:
-            records = [self._parse_log_row(row) for row in rows]
-
-        records = [record for record in records if record]
-        if latest_only and records:
-            return [records[-1]]
+        self._set_last_error("")
         return records
 
     def _fetch_table_rows(self, *, table: str, first: int, last: int) -> List[str]:
@@ -639,14 +722,22 @@ class AE33(MageeBase):
         return [row.strip() for row in response.splitlines() if row.strip()]
 
     def _parse_data_row(self, row: str) -> Dict[str, Any]:
+        """Parse one AE33 TCP Data-table row without silently shifting fields."""
         values = [item.strip() for item in row.split("|")]
+        if len(values) != len(self.HEADERS):
+            raise ValueError(
+                "AE33 Data-table field count mismatch: "
+                f"expected={len(self.HEADERS)} received={len(values)}"
+            )
 
-        if len(values) < len(self.HEADERS):
-            values.extend([""] * (len(self.HEADERS) - len(values)))
-        else:
-            values = values[: len(self.HEADERS)]
-
-        return dict(zip(self.HEADERS, values))
+        record = dict(zip(self.HEADERS, values))
+        normalized_dtm = _normalize_ae33_datetime(str(record.get("dtm", "")))
+        if normalized_dtm is None:
+            raise ValueError(
+                f"AE33 Data-table timestamp is not recognized: {record.get('dtm')!r}"
+            )
+        record["dtm"] = normalized_dtm
+        return record
 
     @staticmethod
     def _parse_log_row(row: str) -> Dict[str, Any]:

@@ -33,8 +33,10 @@ class DummyInstrument:
 def build_orchestrator(instrument_name: str, instrument: DummyInstrument) -> Orchestrator:
     orchestrator = Orchestrator.__new__(Orchestrator)
     orchestrator.logger = logging.getLogger("pydaq.stdout-test")
-    orchestrator.instruments = {instrument_name: instrument}
-    orchestrator._last_status_sample_ts = {}
+    orchestrator.instruments = {"49c": instrument}
+    orchestrator._instrument_config_fingerprints = {"49c": "abc"}
+    orchestrator._last_status_sample_ts = {"49c": 100.0}
+    orchestrator._last_no_sample_notice = {}
     return orchestrator
 
 
@@ -119,8 +121,13 @@ def test_disable_clears_last_status_timestamp(monkeypatch) -> None:
     orchestrator.instruments = {"49c": instrument}
     orchestrator._instrument_config_fingerprints = {"49c": "abc"}
     orchestrator._last_status_sample_ts = {"49c": 100.0}
+    orchestrator._last_no_sample_notice = {"49c": "no sample available yet"}
 
     monkeypatch.setattr("pydaq.pydaq.schedule.clear", lambda tag: None)
+
     orchestrator._disable_instrument("49c", "test")
 
+    assert "49c" not in orchestrator.instruments
+    assert "49c" not in orchestrator._instrument_config_fingerprints
     assert "49c" not in orchestrator._last_status_sample_ts
+    assert "49c" not in orchestrator._last_no_sample_notice
