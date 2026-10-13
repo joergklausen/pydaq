@@ -374,3 +374,30 @@ instruments:
         - monthly
       append: true
       remove_duplicates: true
+
+  tahmo:
+    enabled: true
+    driver: tahmo
+    io:
+      kind: http
+      server: https://tahmo.zentracloud.com
+      api_version: v4
+      token_file: ~/.secrets/zentra-api-token
+      device_sn: z6-02149
+      timeout_seconds: 60
+      per_page: 2000
+      max_pages: 500
+      request_delay_seconds: 1
+      initial_start_date: '2026-10-12 00:00:00'
+    schedule:
+      sample_every_seconds: 3600
+      rollover: none
+      transmit_every_seconds: 3600
+      transmit_delay_seconds: 15
+      print_every_seconds: 3600
+    output:
+      format: files
+      remote_path: tahmo
+      remove_on_success: true
+    init: {}
+    processing: {}

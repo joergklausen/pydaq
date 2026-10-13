@@ -1,0 +1,2231 @@
+{
+  "pagination": {
+    "per_page": 10,
+    "page_num": 1,
+    "next_url": "http://127.0.0.1:8000/api/v4/get_readings/?device_sn=z6-02149&start_date=2026-10-12%2000%3A00%3A00&end_date=2026-10-12%2003%3A00%3A00&output_format=json&per_page=10&page_num=2",
+    "max_mrid": 651996,
+    "page_num_readings": 10,
+    "page_num_outputs": 190,
+    "page_start_date": "2026-10-12 02:15:00+03:00",
+    "page_end_date": "2026-10-12 03:00:00+03:00",
+    "page_start_mrid": 651600,
+    "page_end_mrid": 651609
+  },
+  "data": {
+    "Air Temperature": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": " °C",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 7.5,
+            "precision": 1,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 7.9,
+            "precision": 1,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 8.1,
+            "precision": 1,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 7.4,
+            "precision": 1,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 7.1,
+            "precision": 1,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 6.9,
+            "precision": 1,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 7.3,
+            "precision": 1,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 6.9,
+            "precision": 1,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 6.7,
+            "precision": 1,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 6.7,
+            "precision": 1,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "Atmospheric Pressure": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": " kPa",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651609,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651608,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651607,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651606,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651605,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651604,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651603,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651602,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651601,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651600,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          }
+        ]
+      }
+    ],
+    "Battery Percent": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 7,
+          "sensor_sn": null,
+          "sensor_name": "Battery",
+          "units": "%",
+          "errors": []
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 100.0,
+            "precision": 0,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 100.0,
+            "precision": 0,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 100.0,
+            "precision": 0,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 100.0,
+            "precision": 0,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 100.0,
+            "precision": 0,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 100.0,
+            "precision": 0,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 100.0,
+            "precision": 0,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 100.0,
+            "precision": 0,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 100.0,
+            "precision": 0,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 100.0,
+            "precision": 0,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "Battery Voltage": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 7,
+          "sensor_sn": null,
+          "sensor_name": "Battery",
+          "units": " mV",
+          "errors": []
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 8068.0,
+            "precision": 0,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 8067.0,
+            "precision": 0,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 8067.0,
+            "precision": 0,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 8070.0,
+            "precision": 0,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 8068.0,
+            "precision": 0,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 8068.0,
+            "precision": 0,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 8068.0,
+            "precision": 0,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 8070.0,
+            "precision": 0,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 8070.0,
+            "precision": 0,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 8070.0,
+            "precision": 0,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "Gust Speed": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": " m/s",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 3.87,
+            "precision": 2,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 3.65,
+            "precision": 2,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.47,
+            "precision": 2,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 5.01,
+            "precision": 2,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 5.37,
+            "precision": 2,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 5.87,
+            "precision": 2,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.92,
+            "precision": 2,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 5.02,
+            "precision": 2,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 5.18,
+            "precision": 2,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.42,
+            "precision": 2,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "Lightning Activity": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": "",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "Lightning Distance": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": " km",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 0,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "Logger Temperature": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 8,
+          "sensor_sn": "1553208416",
+          "sensor_name": "Barometer",
+          "units": " °C",
+          "errors": []
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 5.5,
+            "precision": 1,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 5.5,
+            "precision": 1,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 5.2,
+            "precision": 1,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 5.0,
+            "precision": 1,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 5.0,
+            "precision": 1,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.9,
+            "precision": 1,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.8,
+            "precision": 1,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.7,
+            "precision": 1,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.6,
+            "precision": 1,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.5,
+            "precision": 1,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "Max Precip Rate": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": " mm/h",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 1.0,
+            "precision": 1,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "Precipitation": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": " mm",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 3,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 3,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 3,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 3,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.017,
+            "precision": 3,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 3,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 3,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 3,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 3,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 3,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "RH Sensor Temp": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": " °C",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 1,
+            "mrid": 651609,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 1,
+            "mrid": 651608,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 1,
+            "mrid": 651607,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 1,
+            "mrid": 651606,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 1,
+            "mrid": 651605,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 1,
+            "mrid": 651604,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 1,
+            "mrid": 651603,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 1,
+            "mrid": 651602,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 1,
+            "mrid": 651601,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 1,
+            "mrid": 651600,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          }
+        ]
+      }
+    ],
+    "Reference Pressure": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 8,
+          "sensor_sn": "1553208416",
+          "sensor_name": "Barometer",
+          "units": " kPa",
+          "errors": []
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 66.01,
+            "precision": 2,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 66.01,
+            "precision": 2,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 66.01,
+            "precision": 2,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 66.01,
+            "precision": 2,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 66.01,
+            "precision": 2,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 66.01,
+            "precision": 2,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 66.01,
+            "precision": 2,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 66.01,
+            "precision": 2,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 66.02,
+            "precision": 2,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 66.02,
+            "precision": 2,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "Solar Radiation": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": " W/m²",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.0,
+            "precision": 1,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "VPD": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": " kPa",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651609,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651608,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651607,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651606,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651605,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651604,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651603,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651602,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651601,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 2,
+            "mrid": 651600,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          }
+        ]
+      }
+    ],
+    "Vapor Pressure": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": " kPa",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 3,
+            "mrid": 651609,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 3,
+            "mrid": 651608,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 3,
+            "mrid": 651607,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 3,
+            "mrid": 651606,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 3,
+            "mrid": 651605,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 3,
+            "mrid": 651604,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 3,
+            "mrid": 651603,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 3,
+            "mrid": 651602,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 3,
+            "mrid": 651601,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": null,
+            "precision": 3,
+            "mrid": 651600,
+            "error_flag": true,
+            "error_description": "Sensor is reporting an error"
+          }
+        ]
+      }
+    ],
+    "Wind Direction": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": "°",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 117.0,
+            "precision": 0,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 120.0,
+            "precision": 0,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 115.0,
+            "precision": 0,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 114.0,
+            "precision": 0,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 119.0,
+            "precision": 0,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 118.0,
+            "precision": 0,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 112.0,
+            "precision": 0,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 103.0,
+            "precision": 0,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 103.0,
+            "precision": 0,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 101.0,
+            "precision": 0,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "Wind Speed": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": " m/s",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 2.59,
+            "precision": 2,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 2.87,
+            "precision": 2,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 3.6,
+            "precision": 2,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.63,
+            "precision": 2,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.8,
+            "precision": 2,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 5.16,
+            "precision": 2,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.41,
+            "precision": 2,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.44,
+            "precision": 2,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.46,
+            "precision": 2,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 4.04,
+            "precision": 2,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "X-axis Level": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": "°",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.6,
+            "precision": 1,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.6,
+            "precision": 1,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.6,
+            "precision": 1,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.7,
+            "precision": 1,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.8,
+            "precision": 1,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 1.0,
+            "precision": 1,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.6,
+            "precision": 1,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.7,
+            "precision": 1,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.7,
+            "precision": 1,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 0.7,
+            "precision": 1,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ],
+    "Y-axis Level": [
+      {
+        "metadata": {
+          "device_sn": "z6-02149",
+          "device_name": "GAW Station",
+          "port_number": 1,
+          "sensor_sn": "ATM-410004648",
+          "sensor_name": "ATMOS 41",
+          "units": "°",
+          "errors": [
+            "DEGRADED_OUTPUT"
+          ]
+        },
+        "readings": [
+          {
+            "timestamp_utc": 1791763200,
+            "datetime": "2026-10-12 03:00:00+03:00",
+            "tz_offset": 10800,
+            "value": 1.9,
+            "precision": 1,
+            "mrid": 651609,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762900,
+            "datetime": "2026-10-12 02:55:00+03:00",
+            "tz_offset": 10800,
+            "value": 1.9,
+            "precision": 1,
+            "mrid": 651608,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762600,
+            "datetime": "2026-10-12 02:50:00+03:00",
+            "tz_offset": 10800,
+            "value": 1.9,
+            "precision": 1,
+            "mrid": 651607,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762300,
+            "datetime": "2026-10-12 02:45:00+03:00",
+            "tz_offset": 10800,
+            "value": 1.8,
+            "precision": 1,
+            "mrid": 651606,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791762000,
+            "datetime": "2026-10-12 02:40:00+03:00",
+            "tz_offset": 10800,
+            "value": 1.9,
+            "precision": 1,
+            "mrid": 651605,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761700,
+            "datetime": "2026-10-12 02:35:00+03:00",
+            "tz_offset": 10800,
+            "value": 1.6,
+            "precision": 1,
+            "mrid": 651604,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761400,
+            "datetime": "2026-10-12 02:30:00+03:00",
+            "tz_offset": 10800,
+            "value": 1.9,
+            "precision": 1,
+            "mrid": 651603,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791761100,
+            "datetime": "2026-10-12 02:25:00+03:00",
+            "tz_offset": 10800,
+            "value": 1.8,
+            "precision": 1,
+            "mrid": 651602,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760800,
+            "datetime": "2026-10-12 02:20:00+03:00",
+            "tz_offset": 10800,
+            "value": 1.8,
+            "precision": 1,
+            "mrid": 651601,
+            "error_flag": false,
+            "error_description": null
+          },
+          {
+            "timestamp_utc": 1791760500,
+            "datetime": "2026-10-12 02:15:00+03:00",
+            "tz_offset": 10800,
+            "value": 1.9,
+            "precision": 1,
+            "mrid": 651600,
+            "error_flag": false,
+            "error_description": null
+          }
+        ]
+      }
+    ]
+  }
+}

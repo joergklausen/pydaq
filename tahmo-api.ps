@@ -1,0 +1,23 @@
+$key = (Get-Content "$HOME\.secrets\zentra-api-token" -Raw).Trim()
+
+$headers = @{
+    Authorization = "Token $key"
+}
+
+$params = @{
+    device_sn    = "z6-02149"
+    start_date   = "2026-10-12 00:00:00"
+    end_date     = "2026-10-12 03:00:00"
+    output_format = "json"
+    per_page     = 100
+    sort_by      = "ascending"
+}
+
+$query = ($params.GetEnumerator() | ForEach-Object {
+    "$($_.Key)=$([uri]::EscapeDataString([string]$_.Value))"
+}) -join "&"
+
+$url = "https://tahmo.zentracloud.com/api/v4/get_readings/?$query"
+
+$response = Invoke-RestMethod -Uri $url -Headers $headers
+$response | ConvertTo-Json -Depth 15
