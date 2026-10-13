@@ -3,6 +3,8 @@ setlocal EnableExtensions
 
 rem Task Scheduler-friendly launcher for pydaq on Windows.
 rem Duplicate protection is enforced inside pydaq itself.
+rem Set PYDAQ_DEBUG=1 to capture startup/traceback output and pause on failure.
+set "PYDAQ_DEBUG=0"
 
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%\..\..") do set "REPO_DIR=%%~fI"
@@ -36,9 +38,39 @@ if not exist "%CFG_ABS%" (
 
 cd /d "%REPO_DIR%"
 call :log "Starting pydaq with config: %CFG_ABS%"
+
+if /I "%PYDAQ_DEBUG%"=="1" goto run_debug
+
+rem Normal mode: preserve live operator display and Task Scheduler exit code.
 "%PYTHON_EXE%" -u -m pydaq -c "%CFG_ABS%"
 set "PYDAQ_RC=%ERRORLEVEL%"
 if not "%PYDAQ_RC%"=="0" call :err "pydaq exited with code %PYDAQ_RC%"
+exit /b %PYDAQ_RC%
+
+:run_debug
+rem Diagnostic mode: capture all console output to a durable file.
+rem Do not log secrets or print the full environment.
+set "DEBUG_DIR=%REPO_DIR%\diagnostics"
+if not exist "%DEBUG_DIR%" mkdir "%DEBUG_DIR%"
+if not exist "%DEBUG_DIR%" (
+    call :err "Could not create diagnostic directory: %DEBUG_DIR%"
+    exit /b 1
+)
+set "DEBUG_LOG=%DEBUG_DIR%\pydaq-startup.log"
+call :log "Debug capture enabled: %DEBUG_LOG%"
+>>"%DEBUG_LOG%" echo ==== pydaq run ====
+>>"%DEBUG_LOG%" echo Config: %CFG_ABS%
+"%PYTHON_EXE%" -u -m pydaq -c "%CFG_ABS%" >>"%DEBUG_LOG%" 2>&1
+set "PYDAQ_RC=%ERRORLEVEL%"
+if not "%PYDAQ_RC%"=="0" (
+    call :err "pydaq exited with code %PYDAQ_RC%; output saved to %DEBUG_LOG%"
+    echo.
+    echo --- Recent diagnostic output ---
+    powershell -NoProfile -Command "Get-Content -LiteralPath '%DEBUG_LOG%' -Tail 80"
+    echo.
+    echo Press any key to close this diagnostic console.
+    pause >nul
+)
 exit /b %PYDAQ_RC%
 
 :parse_args
@@ -65,6 +97,7 @@ echo   pydaq.bat CONFIG
 echo   pydaq.bat -c CONFIG
 echo.
 echo CONFIG may be absolute or relative to the repository root.
+echo To capture startup errors, run with PYDAQ_DEBUG=1.
 exit /b 0
 
 :usage_error
