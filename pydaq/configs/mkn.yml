@@ -5,7 +5,7 @@ station:
   timezone: UTC
 
 paths:
-  root: ~/pydaq/mkn
+  root: ~/Documents/pydaq/mkn
   data: data
   outbox: outbox
   logs: logs
@@ -19,6 +19,7 @@ logging:
   transfer:
     enabled: true
     remote_path: logs
+
 main:
   loop_sleep_seconds: 1
   config_reload_seconds: 60
