@@ -388,8 +388,8 @@ instruments:
       timeout_seconds: 60
       per_page: 2000
       max_pages: 500
-      request_delay_seconds: 1
-      initial_start_date: '2026-10-12 00:00:00'
+      request_delay_seconds: 65
+      initial_lookback_hours: 12
     schedule:
       sample_every_seconds: 3600
       rollover: none

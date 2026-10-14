@@ -60,13 +60,15 @@ def test_zip_retains_null_values_and_errors(tmp_path: Path) -> None:
     zip_path = tmp_path / "data.zip"
     write_batch_zip(batch=ReadingBatch(tuple(rows)), path=zip_path)
     with ZipFile(zip_path) as zf:
-        assert len(zf.namelist()) == 1
-        reader = csv.DictReader(io.StringIO(zf.read(zf.namelist()[0]).decode()))
-        output = list(reader)
-    assert len(output) == 190
-    pressure = next(r for r in output if r["measurement"] == "Atmospheric Pressure")
-    assert pressure["value"] == ""
-    assert pressure["error_flag"] == "True"
+        assert len(zf.namelist()) == 3
+        output = list(csv.DictReader(io.StringIO(zf.read("data.csv").decode())))
+        quality = list(csv.DictReader(io.StringIO(zf.read("data-quality.csv").decode())))
+        metadata = json.loads(zf.read("data-metadata.json"))
+    assert len(output) == 10
+    assert len(output[0]) == 21
+    assert output[0]["Atmospheric Pressure"] == ""
+    assert any(r["variable"] == "Atmospheric Pressure" and r["error_flag"] == "True" for r in quality)
+    assert metadata["Reference Pressure"]["units"] == "kPa"
 
 
 class FakeClient:

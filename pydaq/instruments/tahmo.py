@@ -12,7 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -81,8 +81,9 @@ class TahmoConfig:
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
     per_page: int = DEFAULT_PER_PAGE
     max_pages: int = 500
-    request_delay_seconds: float = 1.0
+    request_delay_seconds: float = 65.0
     initial_start_date: str | None = None
+    initial_lookback_hours: float = 12.0
 
     @classmethod
     def from_parameters(cls, parameters: Mapping[str, Any]) -> "TahmoConfig":
@@ -118,8 +119,9 @@ class TahmoConfig:
             timeout_seconds=timeout_seconds,
             per_page=per_page,
             max_pages=int(io_cfg.get("max_pages", 500)),
-            request_delay_seconds=float(io_cfg.get("request_delay_seconds", 1.0)),
+            request_delay_seconds=float(io_cfg.get("request_delay_seconds", 65.0)),
             initial_start_date=initial_start_date,
+            initial_lookback_hours=float(io_cfg.get("initial_lookback_hours", 12.0)),
         )
 
 
@@ -318,6 +320,16 @@ class TahmoDownloader:
             args["start_mrid"] = last_mrid + 1
         elif self.config.initial_start_date is not None:
             args["start_date"] = self.config.initial_start_date
+        else:
+            if self.config.initial_lookback_hours <= 0:
+                raise ValueError("TAHMO initial_lookback_hours must be positive")
+            args["start_date"] = (datetime.now(UTC) - timedelta(
+                hours=self.config.initial_lookback_hours
+            )).strftime("%Y-%m-%d %H:%M:%S")
+            self.logger.warning(
+                "[%s] no saved TAHMO cursor; starting with a %.1f h lookback; older data will not be fetched automatically",
+                self.name, self.config.initial_lookback_hours,
+            )
 
         if self.config.max_pages < 1:
             raise ValueError("TAHMO max_pages must be >= 1")
@@ -561,23 +573,67 @@ def flatten_readings(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def wide_tables(batch: ReadingBatch) -> tuple[list[str], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    """Build one observation row per MRID and preserve quality metadata separately.
+
+    Duplicate variables from distinct sensors are disambiguated using their
+    port and sensor serial. Conflicting duplicate cells fail loudly.
+    """
+    identities = {(str(r["measurement"]), str(r.get("port_number") or ""),
+                   str(r.get("sensor_sn") or "")) for r in batch.rows}
+    counts = {}
+    for measurement, _, _ in identities:
+        counts[measurement] = counts.get(measurement, 0) + 1
+    columns = {}
+    for measurement, port, serial in sorted(identities):
+        name = measurement if counts[measurement] == 1 else f"{measurement} [port {port}, {serial}]"
+        columns[(measurement, port, serial)] = name
+    data_by_mrid: dict[int, dict[str, Any]] = {}
+    quality: list[dict[str, Any]] = []
+    metadata: dict[str, Any] = {}
+    for r in batch.rows:
+        mrid = int(r["mrid"])
+        ts = int(float(r["timestamp_utc"]))
+        dtm = datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        key = (str(r["measurement"]), str(r.get("port_number") or ""), str(r.get("sensor_sn") or ""))
+        column = columns[key]
+        rec = data_by_mrid.setdefault(mrid, {"dtm": dtm, "mrid": mrid})
+        if rec["dtm"] != dtm or column in rec:
+            raise ValueError(f"Conflicting TAHMO reading for MRID {mrid}: {column}")
+        rec[column] = r.get("value")
+        metadata[column] = {"units": str(r.get("units") or "").strip(),
+                            "sensor_sn": r.get("sensor_sn"), "sensor_name": r.get("sensor_name"),
+                            "port_number": r.get("port_number"), "sensor_depth": r.get("sensor_depth")}
+        flag = str(r.get("error_flag") or "").lower() in ("true", "1")
+        if flag or r.get("error_description") or r.get("metadata_errors"):
+            quality.append({"dtm": dtm, "mrid": mrid, "variable": column,
+                            "error_flag": flag, "error_description": r.get("error_description") or "",
+                            "sensor_errors": r.get("metadata_errors") or ""})
+    cols = ["dtm", "mrid", *sorted(set(columns.values()))]
+    return cols, [data_by_mrid[n] for n in sorted(data_by_mrid)], quality, metadata
+
+
 def write_batch_zip(*, batch: ReadingBatch, path: Path) -> None:
-    """Write one CSV into a ZIP atomically."""
+    """Write a simple wide CSV plus quality and metadata sidecars into a ZIP."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    csv_name = f"{path.stem}.csv"
-
+    columns, data, quality, metadata = wide_tables(batch)
     buffer = io.StringIO(newline="")
-    writer = csv.DictWriter(buffer, fieldnames=_CSV_COLUMNS, extrasaction="ignore")
+    writer = csv.DictWriter(buffer, fieldnames=columns)
     writer.writeheader()
-    for row in batch.rows:
-        writer.writerow(row)
-    csv_bytes = buffer.getvalue().encode("utf-8")
-
+    writer.writerows(data)
+    quality_buffer = io.StringIO(newline="")
+    qw = csv.DictWriter(quality_buffer, fieldnames=(
+        "dtm", "mrid", "variable", "error_flag", "error_description", "sensor_errors"))
+    qw.writeheader()
+    qw.writerows(quality)
     temp = path.with_name(f".{path.name}.{os.getpid()}.part")
     try:
         with ZipFile(temp, mode="w", compression=ZIP_DEFLATED) as archive:
-            archive.writestr(csv_name, csv_bytes)
+            archive.writestr(f"{path.stem}.csv", buffer.getvalue().encode("utf-8"))
+            archive.writestr(f"{path.stem}-quality.csv", quality_buffer.getvalue().encode("utf-8"))
+            archive.writestr(f"{path.stem}-metadata.json", json.dumps(
+                metadata, indent=2, ensure_ascii=False).encode("utf-8"))
         os.replace(temp, path)
     finally:
         if temp.exists():
