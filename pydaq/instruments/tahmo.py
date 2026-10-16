@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import time
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -464,14 +465,78 @@ class TahmoDownloader:
         )
 
 
+def seconds_to_next_utc_hour(now: datetime | None = None) -> float:
+    """Return a nonnegative delay to the next UTC clock-hour boundary."""
+    current = now or datetime.now(UTC)
+    if current.utcoffset() is None:
+        raise ValueError("Expected timezone-aware datetime")
+    current = current.astimezone(UTC)
+    boundary = current.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    return (boundary - current).total_seconds()
+
+
 class TAHMO(Instrument):
-    """pydaq file-source driver for a TAHMO/ZENTRA Cloud station."""
+    """File-source driver with UTC clock-hour-aligned acquisition.
+
+    The orchestrator's interval callback only bootstraps the clock scheduler;
+    repeated callbacks do not move the scheduled wall-clock boundaries.
+    """
 
     headers = None
 
     def request_reading(self) -> None:
-        """Queue the cloud download instead of the normal CSV record path."""
-        self._task_queue.put(self._fetch_new_data)
+        """Bootstrap a single independent hourly timer, without blocking workers."""
+        with self._tahmo_schedule_lock():
+            if getattr(self, "_tahmo_shutdown", False):
+                return
+            if getattr(self, "_tahmo_timer", None) is None:
+                self._arm_tahmo_timer()
+
+    def _tahmo_schedule_lock(self) -> threading.RLock:
+        lock = getattr(self, "_tahmo_lock", None)
+        if lock is None:
+            # The orchestrator calls request_reading serially for each instrument.
+            lock = threading.RLock()
+            self._tahmo_lock = lock
+        return lock
+
+    def _arm_tahmo_timer(self) -> None:
+        delay = seconds_to_next_utc_hour()
+        timer = threading.Timer(delay, self._on_tahmo_hour)
+        timer.daemon = True
+        self._tahmo_timer = timer
+        self.logger.info("[%s] next TAHMO retrieval at next UTC hour in %.1f s", self.name, delay)
+        timer.start()
+
+    def _on_tahmo_hour(self) -> None:
+        with self._tahmo_schedule_lock():
+            if getattr(self, "_tahmo_shutdown", False):
+                return
+            # Arm the next wall-clock hour before dispatching the download.
+            self._tahmo_timer = None
+            self._arm_tahmo_timer()
+            if getattr(self, "_tahmo_fetch_pending", False):
+                self.logger.warning("[%s] previous TAHMO retrieval still pending; skip hour", self.name)
+                return
+            self._tahmo_fetch_pending = True
+            self._task_queue.put(self._run_tahmo_fetch)
+
+    def _run_tahmo_fetch(self) -> None:
+        try:
+            self._fetch_new_data()
+        finally:
+            with self._tahmo_schedule_lock():
+                self._tahmo_fetch_pending = False
+
+    def stop(self) -> None:
+        """Cancel the hourly timer when pydaq disables or reloads the driver."""
+        with self._tahmo_schedule_lock():
+            self._tahmo_shutdown = True
+            timer = getattr(self, "_tahmo_timer", None)
+            if timer is not None:
+                timer.cancel()
+            self._tahmo_timer = None
+        super().stop()
 
     def _fetch_new_data(self) -> None:
         downloader = getattr(self, "_tahmo_downloader", None)
@@ -614,26 +679,23 @@ def wide_tables(batch: ReadingBatch) -> tuple[list[str], list[dict[str, Any]], l
 
 
 def write_batch_zip(*, batch: ReadingBatch, path: Path) -> None:
-    """Write a simple wide CSV plus quality and metadata sidecars into a ZIP."""
+    """Atomically write exactly one wide-format CSV to the transfer ZIP.
+
+    The CSV uses one row per MRID, with the measured variables as columns.
+    Metadata and quality sidecars are deliberately excluded for downstream
+    gawkenya compatibility. Missing readings remain empty CSV cells.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    columns, data, quality, metadata = wide_tables(batch)
+    columns, data, _, _ = wide_tables(batch)
     buffer = io.StringIO(newline="")
     writer = csv.DictWriter(buffer, fieldnames=columns)
     writer.writeheader()
     writer.writerows(data)
-    quality_buffer = io.StringIO(newline="")
-    qw = csv.DictWriter(quality_buffer, fieldnames=(
-        "dtm", "mrid", "variable", "error_flag", "error_description", "sensor_errors"))
-    qw.writeheader()
-    qw.writerows(quality)
     temp = path.with_name(f".{path.name}.{os.getpid()}.part")
     try:
         with ZipFile(temp, mode="w", compression=ZIP_DEFLATED) as archive:
             archive.writestr(f"{path.stem}.csv", buffer.getvalue().encode("utf-8"))
-            archive.writestr(f"{path.stem}-quality.csv", quality_buffer.getvalue().encode("utf-8"))
-            archive.writestr(f"{path.stem}-metadata.json", json.dumps(
-                metadata, indent=2, ensure_ascii=False).encode("utf-8"))
         os.replace(temp, path)
     finally:
         if temp.exists():

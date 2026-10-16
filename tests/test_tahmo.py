@@ -8,6 +8,7 @@ import logging
 import sys
 import types
 from pathlib import Path
+from datetime import UTC, datetime
 from zipfile import ZipFile
 
 # The API/downloader tests can run outside the full pydaq repository.
@@ -21,7 +22,7 @@ except ImportError:
             module.__path__ = [str(Path(__file__).resolve().parents[1] / package.replace('.', '/'))]
             sys.modules[package] = module
     stub = types.ModuleType("pydaq.instruments.instrument")
-    stub.Instrument = type("Instrument", (), {})
+    stub.Instrument = type("Instrument", (), {"stop": lambda self: None})
     sys.modules["pydaq.instruments.instrument"] = stub
 
 from pydaq.instruments.tahmo import (  # noqa: E402
@@ -30,6 +31,8 @@ from pydaq.instruments.tahmo import (  # noqa: E402
     TahmoDownloader,
     flatten_readings,
     write_batch_zip,
+    seconds_to_next_utc_hour,
+    TAHMO,
 )
 
 FIXTURE = Path(__file__).with_name("tahmo_sample.json")
@@ -55,20 +58,16 @@ def test_real_response_has_complete_records_and_quality() -> None:
     assert pressure["tz_offset"] == 10800
 
 
-def test_zip_retains_null_values_and_errors(tmp_path: Path) -> None:
+def test_zip_contains_only_wide_data_csv(tmp_path: Path) -> None:
     rows = flatten_readings(_sample())
     zip_path = tmp_path / "data.zip"
     write_batch_zip(batch=ReadingBatch(tuple(rows)), path=zip_path)
     with ZipFile(zip_path) as zf:
-        assert len(zf.namelist()) == 3
+        assert zf.namelist() == ["data.csv"]
         output = list(csv.DictReader(io.StringIO(zf.read("data.csv").decode())))
-        quality = list(csv.DictReader(io.StringIO(zf.read("data-quality.csv").decode())))
-        metadata = json.loads(zf.read("data-metadata.json"))
     assert len(output) == 10
     assert len(output[0]) == 21
     assert output[0]["Atmospheric Pressure"] == ""
-    assert any(r["variable"] == "Atmospheric Pressure" and r["error_flag"] == "True" for r in quality)
-    assert metadata["Reference Pressure"]["units"] == "kPa"
 
 
 class FakeClient:
@@ -144,3 +143,55 @@ def test_cap_prevents_partial_commit(tmp_path: Path) -> None:
                             request_delay_seconds=0)
     assert dl.fetch_once() is None
     assert not dl.state_path.exists()
+
+
+def test_next_hour_is_utc_clock_aligned() -> None:
+    assert seconds_to_next_utc_hour(datetime(2026, 10, 16, 9, 3, 29, tzinfo=UTC)) == 3391
+    assert seconds_to_next_utc_hour(datetime(2026, 10, 16, 9, 59, 59, tzinfo=UTC)) == 1
+    assert seconds_to_next_utc_hour(datetime(2026, 10, 16, 10, 0, tzinfo=UTC)) == 3600
+
+
+def test_request_reading_arms_one_timer_not_one_per_orchestrator_tick(monkeypatch) -> None:
+    """The adapter arms one timer and cancels it on shutdown.
+
+    Only the adapter is initialized: the base class lifecycle must be mocked,
+    because object.__new__ does not initialize Instrument._stop_event.
+    """
+    from pydaq.instruments import tahmo as module
+
+    class Timer:
+        instances = []
+
+        def __init__(self, delay, callback):
+            self.delay = delay
+            self.callback = callback
+            self.cancelled = False
+            Timer.instances.append(self)
+
+        def start(self) -> None:
+            pass
+
+        def cancel(self) -> None:
+            self.cancelled = True
+
+    monkeypatch.setattr(module.threading, "Timer", Timer)
+    # Instrument.__init__() was deliberately bypassed; isolate the adapter's
+    # stop() behavior from the base worker-thread shutdown implementation.
+    monkeypatch.setattr(module.Instrument, "stop", lambda self: None)
+
+    instrument = object.__new__(TAHMO)
+    instrument.name = "tahmo"
+    instrument.logger = logging.getLogger("test.tahmo")
+
+    instrument.request_reading()
+    instrument.request_reading()
+
+    assert len(Timer.instances) == 1
+    assert 0 < Timer.instances[0].delay <= 3600
+    assert not Timer.instances[0].cancelled
+
+    instrument.stop()
+
+    assert Timer.instances[0].cancelled
+    assert instrument._tahmo_timer is None
+    assert instrument._tahmo_shutdown is True
