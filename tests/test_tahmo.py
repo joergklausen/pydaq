@@ -58,16 +58,46 @@ def test_real_response_has_complete_records_and_quality() -> None:
     assert pressure["tz_offset"] == 10800
 
 
-def test_zip_contains_only_wide_data_csv(tmp_path: Path) -> None:
+def test_zip_contains_one_csv_with_all_original_columns_and_errors(tmp_path: Path) -> None:
+    """Prevent regressions to multiple members or wide, unflagged CSV."""
     rows = flatten_readings(_sample())
-    zip_path = tmp_path / "data.zip"
+    zip_path = tmp_path / "tahmo-z6-02149-mrid651600-651609.zip"
     write_batch_zip(batch=ReadingBatch(tuple(rows)), path=zip_path)
+
     with ZipFile(zip_path) as zf:
-        assert zf.namelist() == ["data.csv"]
-        output = list(csv.DictReader(io.StringIO(zf.read("data.csv").decode())))
-    assert len(output) == 10
-    assert len(output[0]) == 21
-    assert output[0]["Atmospheric Pressure"] == ""
+        assert zf.namelist() == ["tahmo-z6-02149-mrid651600-651609.csv"]
+        with zf.open(zf.namelist()[0]) as stream:
+            text = io.TextIOWrapper(stream, encoding="utf-8", newline="")
+            reader = csv.DictReader(text)
+            assert reader.fieldnames == [
+                "measurement", "device_sn", "device_name", "port_number",
+                "sensor_sn", "sensor_name", "units", "sensor_depth",
+                "timestamp_utc", "datetime", "tz_offset", "value",
+                "precision", "mrid", "error_flag", "error_description",
+                "metadata_errors", "metadata_extra_json", "reading_extra_json",
+            ]
+            output = list(reader)
+
+    # Ten MRIDs with 19 measurements each, not ten unflagged wide rows.
+    assert len(output) == 190
+    assert {int(r["mrid"]) for r in output} == set(range(651600, 651610))
+    pressure = next(
+        r for r in output
+        if r["measurement"] == "Atmospheric Pressure" and r["mrid"] == "651600"
+    )
+    assert pressure["device_sn"] == "z6-02149"
+    assert pressure["value"] == ""
+    assert pressure["error_flag"] == "True"
+    assert pressure["error_description"] == "Sensor is reporting an error"
+    assert pressure["units"].strip() == "kPa"
+    assert "DEGRADED_OUTPUT" in pressure["metadata_errors"]
+    temperature = next(
+        r for r in output
+        if r["measurement"] == "Air Temperature" and r["mrid"] == "651600"
+    )
+    assert temperature["error_flag"] == "False"
+    assert temperature["value"] != ""
+
 
 
 class FakeClient:

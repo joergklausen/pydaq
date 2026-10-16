@@ -638,60 +638,24 @@ def flatten_readings(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
-def wide_tables(batch: ReadingBatch) -> tuple[list[str], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
-    """Build one observation row per MRID and preserve quality metadata separately.
-
-    Duplicate variables from distinct sensors are disambiguated using their
-    port and sensor serial. Conflicting duplicate cells fail loudly.
-    """
-    identities = {(str(r["measurement"]), str(r.get("port_number") or ""),
-                   str(r.get("sensor_sn") or "")) for r in batch.rows}
-    counts = {}
-    for measurement, _, _ in identities:
-        counts[measurement] = counts.get(measurement, 0) + 1
-    columns = {}
-    for measurement, port, serial in sorted(identities):
-        name = measurement if counts[measurement] == 1 else f"{measurement} [port {port}, {serial}]"
-        columns[(measurement, port, serial)] = name
-    data_by_mrid: dict[int, dict[str, Any]] = {}
-    quality: list[dict[str, Any]] = []
-    metadata: dict[str, Any] = {}
-    for r in batch.rows:
-        mrid = int(r["mrid"])
-        ts = int(float(r["timestamp_utc"]))
-        dtm = datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        key = (str(r["measurement"]), str(r.get("port_number") or ""), str(r.get("sensor_sn") or ""))
-        column = columns[key]
-        rec = data_by_mrid.setdefault(mrid, {"dtm": dtm, "mrid": mrid})
-        if rec["dtm"] != dtm or column in rec:
-            raise ValueError(f"Conflicting TAHMO reading for MRID {mrid}: {column}")
-        rec[column] = r.get("value")
-        metadata[column] = {"units": str(r.get("units") or "").strip(),
-                            "sensor_sn": r.get("sensor_sn"), "sensor_name": r.get("sensor_name"),
-                            "port_number": r.get("port_number"), "sensor_depth": r.get("sensor_depth")}
-        flag = str(r.get("error_flag") or "").lower() in ("true", "1")
-        if flag or r.get("error_description") or r.get("metadata_errors"):
-            quality.append({"dtm": dtm, "mrid": mrid, "variable": column,
-                            "error_flag": flag, "error_description": r.get("error_description") or "",
-                            "sensor_errors": r.get("metadata_errors") or ""})
-    cols = ["dtm", "mrid", *sorted(set(columns.values()))]
-    return cols, [data_by_mrid[n] for n in sorted(data_by_mrid)], quality, metadata
-
-
 def write_batch_zip(*, batch: ReadingBatch, path: Path) -> None:
-    """Atomically write exactly one wide-format CSV to the transfer ZIP.
+    """Write one flat CSV into a ZIP, preserving original TAHMO reading fields.
 
-    The CSV uses one row per MRID, with the measured variables as columns.
-    Metadata and quality sidecars are deliberately excluded for downstream
-    gawkenya compatibility. Missing readings remain empty CSV cells.
+    There is one row per sensor measurement and MRID.  Quality information
+    (``error_flag``, ``error_description``, ``metadata_errors``), instrument
+    identity, units, and UTC timestamps are columns in that same CSV; there
+    are no metadata/quality sidecar archive members.
+
+    The output schema stays compatible with the gawkenya TAHMO importer.
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    columns, data, _, _ = wide_tables(batch)
+
     buffer = io.StringIO(newline="")
-    writer = csv.DictWriter(buffer, fieldnames=columns)
+    writer = csv.DictWriter(buffer, fieldnames=_CSV_COLUMNS, extrasaction="raise")
     writer.writeheader()
-    writer.writerows(data)
+    writer.writerows(batch.rows)
+
     temp = path.with_name(f".{path.name}.{os.getpid()}.part")
     try:
         with ZipFile(temp, mode="w", compression=ZIP_DEFLATED) as archive:
