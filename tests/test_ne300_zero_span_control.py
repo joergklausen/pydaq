@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from pydaq.utils import ne300_zero_span_control as remote
+from pydaq.utils import ne300_remote as remote
 
 
 def _reply(command: int, body: bytes, serial_id: int = 0) -> bytes:
@@ -166,7 +166,14 @@ def test_phase_sequence_restores_ambient(
     monkeypatch.setattr(
         client, "set_operation", lambda mode, *, verify_seconds=5.0: modes.append(mode)
     )
-    monkeypatch.setattr(remote.time, "sleep", lambda seconds: sleeps.append(seconds))
+    now = [100.0]
+    monkeypatch.setattr(remote.time, "monotonic", lambda: now[0])
+
+    def advance(seconds: float) -> None:
+        sleeps.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(remote.time, "sleep", advance)
     remote.run_modes(client, [(1, 2.5), (2, 3.0)])
     assert modes == [1, 2, 0]
     assert sleeps == [2.5, 3.0]
@@ -213,3 +220,76 @@ def test_truncated_reply_rejected(
     )
     with pytest.raises(ConnectionError, match="closed during response"):
         remote.AcoemRemote(endpoint).get_values([4035])
+
+
+def test_unverified_can_dwell_for_set_duration_and_return_to_ambient(
+    monkeypatch: pytest.MonkeyPatch, endpoint: remote.AcoemEndpoint
+) -> None:
+    client = remote.AcoemRemote(endpoint)
+    modes: list[int] = []
+    now = [100.0]
+    monkeypatch.setattr(remote.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(client, "status", lambda: {4035: 0, 4036: 0})
+
+    def set_mode(mode: int, *, verify_seconds: float = 5.0) -> None:
+        modes.append(mode)
+        if mode == 1:
+            now[0] += 4  # 4035 polling consumed 4 seconds
+            raise remote.UnverifiedStateError("4035 remained 0")
+
+    monkeypatch.setattr(client, "set_operation", set_mode)
+    monkeypatch.setattr(remote.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds))
+    remote.run_modes(client, [(1, 10)], allow_unverified=True)
+    assert modes == [1, 0]
+    assert now[0] == 110.0  # includes verification time, not 10 more seconds
+
+
+def test_unverified_rejected_by_default_but_ambient_attempted(
+    monkeypatch: pytest.MonkeyPatch, endpoint: remote.AcoemEndpoint
+) -> None:
+    client = remote.AcoemRemote(endpoint)
+    modes: list[int] = []
+    monkeypatch.setattr(client, "status", lambda: {4035: 0})
+
+    def set_mode(mode: int, **_kwargs: Any) -> None:
+        modes.append(mode)
+        if mode == 2:
+            raise remote.UnverifiedStateError("not reported")
+
+    monkeypatch.setattr(client, "set_operation", set_mode)
+    with pytest.raises(remote.UnverifiedStateError, match="not reported"):
+        remote.run_modes(client, [(2, 5)])
+    assert modes == [2, 0]
+
+
+def test_allow_unverified_does_not_hide_transport_failure(
+    monkeypatch: pytest.MonkeyPatch, endpoint: remote.AcoemEndpoint
+) -> None:
+    client = remote.AcoemRemote(endpoint)
+    modes: list[int] = []
+    monkeypatch.setattr(client, "status", lambda: {4035: 0})
+
+    def set_mode(mode: int, **_kwargs: Any) -> None:
+        modes.append(mode)
+        if mode == 1:
+            raise ConnectionError("connection failed")
+
+    monkeypatch.setattr(client, "set_operation", set_mode)
+    with pytest.raises(ConnectionError, match="connection failed"):
+        remote.run_modes(client, [(1, 5)], allow_unverified=True)
+    assert modes == [1, 0]
+
+
+def test_cli_passes_unverified_option_to_timed_runner(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = tmp_path / "config.yml"
+    cfg.write_text("instruments: {ne300: {driver: ne300, io: {host: example.org, port: 123}}}")
+    calls: list[tuple[Any, Any]] = []
+    def fake_run(client: Any, phases: Any, **kwargs: Any) -> None:
+        calls.append((list(phases), kwargs))
+    monkeypatch.setattr(remote, "run_modes", fake_run)
+    assert remote.main([
+        "-c", str(cfg), "zero", "--seconds", "45", "--experimental", "--allow-unverified"
+    ]) == 0
+    assert calls == [([(1, 45.0)], {"verify_seconds": 5.0, "allow_unverified": True})]

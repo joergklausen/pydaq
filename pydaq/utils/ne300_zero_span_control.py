@@ -8,9 +8,10 @@ the legacy mkndaq driver are retained here only as an *experimental* feature.
 Use::
 
     python -m pydaq.utils.ne300_zero_span_control -c pydaq/configs/mkn.yml status
-    python -m pydaq.utils.ne300_zero_span_control -c pydaq/configs/mkn.yml zero --seconds 60 --experimental
+    python -m pydaq.utils.ne300_zero_span_control -c pydaq/configs/mkn.yml zero --seconds 360 --experimental
 
-Use on a supervised instrument first, with pydaq stopped for write tests.
+Run on the station PC. Disable only ne300 in pydaq during tests.
+A TeamViewer disconnect should not stop the locally running command.
 """
 
 from __future__ import annotations
@@ -87,6 +88,10 @@ def load_endpoint(config_path: Path, instrument: str = "ne300") -> AcoemEndpoint
         timeout_seconds=float(io.get("timeout_seconds", io.get("timeout", 5))),
         read_max_bytes=int(io.get("read_max_bytes", 65536)),
     )
+
+
+class UnverifiedStateError(RuntimeError):
+    """A state write was sent but 4035 did not confirm the requested mode."""
 
 
 class AcoemRemote:
@@ -217,7 +222,7 @@ class AcoemRemote:
                 _LOG.info("Read-back 4035=%d (%s)", reported, MODES[mode])
                 return
             if time.monotonic() >= deadline:
-                raise RuntimeError(
+                raise UnverifiedStateError(
                     f"Cannot verify operation change to {MODES[mode]}: "
                     f"4035 still reports {reported}; no evidence that command 5 took effect"
                 )
@@ -229,39 +234,67 @@ def run_modes(
     phases: Sequence[tuple[int, float]],
     *,
     verify_seconds: float = 5.0,
+    allow_unverified: bool = False,
 ) -> None:
-    """Attempt finite zero/span states, always attempting ambient afterward.
+    """Request zero/span for bounded durations and always request ambient.
 
-    Args:
-        client: Client connected to the NE-300.
-        phases: Sequence of ``(mode, seconds)`` for zero/span.
-        verify_seconds: Timeout to verify each requested operation state.
+    This runs in the foreground on the station PC; dropping the TeamViewer
+    connection does not stop the locally running Python process.
+
+    ``allow_unverified`` only permits waiting through a reported-state mismatch.
+    It does not suppress a network/protocol error or prove valve movement.
     """
     if not phases or any(mode not in (1, 2) or seconds <= 0 for mode, seconds in phases):
         raise ValueError("Only finite, positive-duration zero/span phases are supported")
-    before = client.status()[CURRENT_OPERATION]
-    if before != 0:
+    if sum(seconds for _, seconds in phases) > 3600:
+        raise ValueError("Combined zero/span duration must not exceed 3600 seconds")
+    before = client.status()
+    if before[CURRENT_OPERATION] != 0:
         raise RuntimeError(
-            f"Refusing to interrupt instrument: current operation is {before}, not ambient (0)"
+            f"Refusing to interrupt instrument: current operation is "
+            f"{before[CURRENT_OPERATION]}, not ambient (0)"
         )
-    _LOG.info("Initial operation ambient; running %d experimental phase(s)", len(phases))
+    _LOG.info(
+        "Initial status: 4035=%s, 4036=%s; %d timed phase(s)",
+        before[CURRENT_OPERATION], before.get(DIO_STATE, "?"), len(phases)
+    )
     try:
         for mode, duration in phases:
-            client.set_operation(mode, verify_seconds=verify_seconds)
-            _LOG.info("Requested state=%s for %.1f seconds", MODES[mode], duration)
-            time.sleep(duration)
+            # Bound the state-request interval from the moment we begin the
+            # write, including any time spent polling 4035 for verification.
+            phase_deadline = time.monotonic() + duration
+            try:
+                client.set_operation(mode, verify_seconds=verify_seconds)
+            except UnverifiedStateError as exc:
+                if not allow_unverified:
+                    raise
+                _LOG.warning(
+                    "Requested %s NOT VERIFIED: %s; continuing timed diagnostic "
+                    "only because --allow-unverified was specified",
+                    MODES[mode], exc,
+                )
+            remaining = max(0.0, phase_deadline - time.monotonic())
+            _LOG.warning(
+                "Requested %s (NOT a calibration); ambient or next phase in "
+                "%.1f seconds", MODES[mode], remaining,
+            )
+            if remaining:
+                time.sleep(remaining)
     finally:
-        # This runs after communication errors, verification failures and Ctrl+C.
-        # No software guarantee survives abrupt process/host loss: supervise it.
-        _LOG.warning("Attempting return to ambient")
+        # Even if a phase fails or Ctrl+C interrupts time.sleep, try ambient.
+        # Cannot recover from power failure, forced termination, or a rejected
+        # command: manual/instrument-side fail-safe must cover those cases.
+        _LOG.warning("Requesting return to ambient now (4035=0)")
         try:
             client.set_operation(0, verify_seconds=verify_seconds)
         except Exception as exc:
             _LOG.critical(
-                "Return to ambient NOT VERIFIED: %s; check instrument locally", exc
+                "Ambient return NOT VERIFIED: %s; inspect instrument locally", exc
             )
             raise
-        _LOG.info("Ambient requested and parameter 4035 read-back matched")
+        _LOG.warning(
+            "4035 reports ambient after return request; physical valve position not proven"
+        )
 
 
 def _positive_seconds(value: str) -> float:
@@ -292,10 +325,15 @@ def make_parser() -> argparse.ArgumentParser:
         command = commands.add_parser(name, help=f"EXPERIMENTAL timed {name} state (NOT calibration)")
         command.add_argument("--seconds", type=_positive_seconds, required=True)
         command.add_argument("--experimental", action="store_true")
+        command.add_argument(
+            "--allow-unverified", action="store_true",
+            help="Continue timed diagnostic even if 4035 does not confirm the state",
+        )
     sequence = commands.add_parser("zero-span", help="EXPERIMENTAL states, NOT a zero/span calibration")
     sequence.add_argument("--zero-seconds", type=_positive_seconds, required=True)
     sequence.add_argument("--span-seconds", type=_positive_seconds, required=True)
     sequence.add_argument("--experimental", action="store_true")
+    sequence.add_argument("--allow-unverified", action="store_true")
     return parser
 
 
@@ -333,12 +371,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             client.set_operation(0, verify_seconds=args.verify_seconds)
         elif args.action in {"zero", "span"}:
             mode = 1 if args.action == "zero" else 2
-            run_modes(client, [(mode, args.seconds)], verify_seconds=args.verify_seconds)
+            run_modes(
+                client, [(mode, args.seconds)],
+                verify_seconds=args.verify_seconds,
+                allow_unverified=args.allow_unverified,
+            )
         else:
             run_modes(
                 client,
                 [(1, args.zero_seconds), (2, args.span_seconds)],
                 verify_seconds=args.verify_seconds,
+                allow_unverified=args.allow_unverified,
             )
         return 0
     except (OSError, ValueError, RuntimeError, KeyboardInterrupt) as exc:
