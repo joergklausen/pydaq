@@ -120,7 +120,7 @@ pydaq/
 python -m pydaq -c configs/buc.yml
 ```
 
-Dashboard endpoints, if enabled in config:
+### Dashboard endpoints, if enabled in config
 
 - `GET /health`
 - `GET /instruments`
@@ -145,6 +145,31 @@ for example daily at 3am:
 
 ```text
 0 3 * * * /usr/bin/systemctl restart pydaq.service
+```
+
+### Check if pydaq is running
+
+```bash
+ps aux | grep pydaq
+```
+
+or
+
+```bash
+pgrep -fl pydaq
+```
+
+### Find devices on the LAN
+
+```bash
+sudo apt update
+sudo apt install arp-scan
+sudo arp-scan --interface=eth0 --localnet
+```
+
+```bash
+sudo apt install nmap -y
+nmap -sn
 ```
 
 ## Configuration conventions
@@ -246,21 +271,14 @@ In the VS Code **autoDocstring** extension, set:
 { "autoDocstring.docstringFormat": "google" }
 ```
 
-## Testing is tested with **pytest**. To run the test suite:   
+## Testing is tested with **pytest**
+
+To run the test suite:
 
 ```bash
 pytest tests/
 ```
 
-## Check if pydaq is running:
-
-```bash
-ps aux | grep pydaq
-```
-or
-```bash
-pgrep -fl pydaq
-```
-
 ## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
