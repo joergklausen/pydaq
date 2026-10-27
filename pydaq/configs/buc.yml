@@ -62,12 +62,12 @@ instruments:
   49i:
     enabled: true
     serial_number: 49I-B3NAA-CM09350107
-    mac: n/a
+    mac: 00:06:3b:00:f2:d7
     id: 49
     driver: 49i
     io: 
       kind: socket 
-      host: 192.168.0.100 #192.168.100.49
+      host: 192.168.0.5 #192.168.100.49
       port: 9880
       timeout: 5
       sleep: 0.5
