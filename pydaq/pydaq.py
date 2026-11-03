@@ -527,14 +527,42 @@ class Orchestrator:
                         instrument_name,
                         reason="config changed",
                     )
-                instrument = self._create_instrument_instance(instrument_config)
+                # An unavailable driver must not prevent other instruments
+                # from starting.  Only publish it after successful setup.
+                instrument: Instrument | None = None
+                try:
+                    instrument = self._create_instrument_instance(instrument_config)
+                    instrument.set_enabled(True)
+                    instrument.start()
+                    self._schedule_instrument_jobs(instrument_config, instrument)
+                except Exception as exc:
+                    # A partially created schedule/worker must not survive a
+                    # failed activation.  In particular, a missing optional
+                    # dependency (e.g. cv2 for Tapo) is isolated here.
+                    schedule.clear(f"instrument:{instrument_name}")
+                    if instrument is not None:
+                        try:
+                            instrument.set_enabled(False)
+                            instrument.stop()
+                        except Exception:
+                            self.logger.exception(
+                                "[%s] driver cleanup failed", instrument_name
+                            )
+                    self.logger.error(
+                        "[%s] driver=%s unavailable: %s: %s; "
+                        "continuing with other instruments",
+                        instrument_name,
+                        instrument_config.driver,
+                        type(exc).__name__,
+                        exc,
+                        exc_info=True,
+                        extra={"console_compact": True},
+                    )
+                    continue
+
+                assert instrument is not None
                 self.instruments[instrument_name] = instrument
-                self._instrument_config_fingerprints[instrument_name] = (
-                    fingerprint
-                )
-                instrument.set_enabled(True)
-                instrument.start()
-                self._schedule_instrument_jobs(instrument_config, instrument)
+                self._instrument_config_fingerprints[instrument_name] = fingerprint
                 self.logger.info(
                     "[%s] enabled driver=%s",
                     instrument_name,

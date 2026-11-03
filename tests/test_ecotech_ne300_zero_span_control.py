@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from pydaq.utils import ne300_remote as remote
+from pydaq.utils import ne300_zero_span_control as remote
 
 
 def _reply(command: int, body: bytes, serial_id: int = 0) -> bytes:

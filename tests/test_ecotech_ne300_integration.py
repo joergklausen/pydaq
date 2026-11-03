@@ -4,7 +4,7 @@ from __future__ import annotations
 
 Run on a host that can reach the configured instrument:
 
-    python -m pytest -vv -rs -s tests/test_ne300_integration.py --run-integration --station-config pydaq/configs/mkn.yml
+    python -m pytest -vv -rs -s tests/test_ecotech_ne300_integration.py --run-integration --station-config pydaq/configs/mkn.yml
 """
 
 from dataclasses import asdict

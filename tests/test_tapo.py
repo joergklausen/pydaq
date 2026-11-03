@@ -3,10 +3,13 @@ import logging
 from pathlib import Path
 from queue import Queue
 from threading import Lock
-from types import SimpleNamespace
 
 import cv2
 import pytest
+
+from pydaq.instruments.instrument import InstrumentState
+
+cv2 = pytest.importorskip("cv2")
 
 from pydaq.instruments.tapo import TAPO
 
@@ -29,7 +32,7 @@ def camera(tmp_path):
     instance._capture_lock = Lock()
     instance._task_queue = Queue()
     instance._state_lock = Lock()
-    instance.state = SimpleNamespace(enabled=True, latest={}, last_error="", last_sample_ts=0)
+    instance.state = InstrumentState(enabled=True)
     return instance
 
 
@@ -70,15 +73,29 @@ def setup_cv(monkeypatch, opened=True):
 def test_capture_and_transfer_staging(tmp_path, monkeypatch):
     d = camera(tmp_path)
     seen = setup_cv(monkeypatch)
+
     d.request_reading()
-    archive = d._task_queue.get_nowait()()
+    task = d._task_queue.get_nowait()
+    assert task() is None  # Worker tasks must return None
+
+    # Obtain the filename from the instrument state.
+    assert d.state.last_error == ""
+    filename = d.state.latest["file"]
+    archives = list(d.data_dir.rglob(filename))
+    assert len(archives) == 1
+    archive = archives[0]
+
     assert archive.is_file()
     assert archive.suffix == ".png"
-    assert archive.read_bytes() == (d.outbox_dir / archive.name).read_bytes()
-    assert d.state.latest["file"] == archive.name
+    assert archive.read_bytes() == (
+        d.outbox_dir / archive.name
+    ).read_bytes()
+
     assert not list((d.outbox_dir / ".incoming").iterdir())
     assert len(seen) == 1
-    assert seen[0][0][0] == "rtsp://camera:secret@192.168.200.164:554/stream1"
+    assert seen[0][0][0] == (
+        "rtsp://camera:secret@192.168.200.164:554/stream1"
+    )
     assert seen[0][0][1] == cv2.CAP_FFMPEG
     assert seen[0][1].released
 
@@ -115,9 +132,9 @@ def test_jpg_output(tmp_path, monkeypatch):
     d.parameters["init"]["image_format"] = "jpg"
     seen = setup_cv(monkeypatch)
     archive = d.capture_snapshot()
+    assert archive is not None, "Tapo snapshot acquisition failed"
     assert archive.suffix == ".jpg"
     assert (d.outbox_dir / archive.name).is_file()
-
 
 def test_disabled_skips_capture(tmp_path, monkeypatch):
     d = camera(tmp_path)

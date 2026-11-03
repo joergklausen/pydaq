@@ -8,6 +8,7 @@ dependencies = [
   "PyYAML>=6.0",
   "schedule>=1.2",
   "polars",
+  "opencv-python>=4.8",
 ]
 
 [project.optional-dependencies]

@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
+from pydaq.instruments.instrument import Instrument
 from pydaq.pydaq import Orchestrator
 
 
@@ -30,12 +31,19 @@ class DummyInstrument:
         self.EMITS_OWN_STATUS = emits_own_status
 
 
-def build_orchestrator(instrument_name: str, instrument: DummyInstrument) -> Orchestrator:
+def build_orchestrator(
+    instrument_name: str,
+    instrument: DummyInstrument,
+) -> Orchestrator:
     orchestrator = Orchestrator.__new__(Orchestrator)
-    orchestrator.logger = logging.getLogger("pydaq.stdout-test")
-    orchestrator.instruments = {"49c": instrument}
-    orchestrator._instrument_config_fingerprints = {"49c": "abc"}
-    orchestrator._last_status_sample_ts = {"49c": 100.0}
+    orchestrator.logger = logging.getLogger("test_pydaq.stdout")
+    orchestrator.instruments = {
+        instrument_name: cast(Instrument, instrument)
+    }
+    orchestrator._instrument_config_fingerprints = {
+        instrument_name: "abc"
+    }
+    orchestrator._last_status_sample_ts = {}
     orchestrator._last_no_sample_notice = {}
     return orchestrator
 
@@ -55,7 +63,7 @@ def test_shared_formatter_logs_new_49i_sample_once(caplog) -> None:
     )
     orchestrator = build_orchestrator("49i", instrument)
 
-    with caplog.at_level(logging.DEBUG, logger="pydaq.stdout-test"):
+    with caplog.at_level(logging.DEBUG, logger="test_pydaq.stdout"):
         orchestrator._log_latest_for_instrument("49i")
         orchestrator._log_latest_for_instrument("49i")
 
@@ -69,7 +77,7 @@ def test_shared_formatter_logs_next_sample(caplog) -> None:
     )
     orchestrator = build_orchestrator("hmp110-inlet", instrument)
 
-    with caplog.at_level(logging.INFO, logger="pydaq.stdout-test"):
+    with caplog.at_level(logging.INFO, logger="test_pydaq.stdout"):
         orchestrator._log_latest_for_instrument("hmp110-inlet")
         instrument.state.latest = {
             "dtm": "2026-08-01 14:06:00",
@@ -94,7 +102,7 @@ def test_driver_owned_status_is_not_duplicated(caplog) -> None:
     )
     orchestrator = build_orchestrator("fidas", instrument)
 
-    with caplog.at_level(logging.DEBUG, logger="pydaq.stdout-test"):
+    with caplog.at_level(logging.DEBUG, logger="test_pydaq.stdout"):
         orchestrator._log_latest_for_instrument("fidas")
 
     assert info_messages(caplog) == []
@@ -105,7 +113,7 @@ def test_driver_owned_status_still_gets_no_sample_warning(caplog) -> None:
     instrument = DummyInstrument(emits_own_status=True)
     orchestrator = build_orchestrator("ne300", instrument)
 
-    with caplog.at_level(logging.WARNING, logger="pydaq.stdout-test"):
+    with caplog.at_level(logging.WARNING, logger="test_pydaq.stdout"):
         orchestrator._log_latest_for_instrument("ne300")
 
     assert "[ne300] no sample available yet" in caplog.text
@@ -117,8 +125,8 @@ def test_disable_clears_last_status_timestamp(monkeypatch) -> None:
         stop=lambda: None,
     )
     orchestrator = Orchestrator.__new__(Orchestrator)
-    orchestrator.logger = logging.getLogger("pydaq.stdout-test")
-    orchestrator.instruments = {"49c": instrument}
+    orchestrator.logger = logging.getLogger("test_pydaq.stdout")
+    orchestrator.instruments = {"49c": cast(Instrument, instrument)}
     orchestrator._instrument_config_fingerprints = {"49c": "abc"}
     orchestrator._last_status_sample_ts = {"49c": 100.0}
     orchestrator._last_no_sample_notice = {"49c": "no sample available yet"}

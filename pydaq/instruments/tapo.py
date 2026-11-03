@@ -31,16 +31,16 @@ class TAPO(Instrument):
         super().__init__(*args, headers=None, **kwargs)
         self._capture_lock = Lock()
 
-def request_reading(self) -> None:
-    """Queue a snapshot acquisition."""
-    self._task_queue.put(self._capture_task)
+    def request_reading(self) -> None:
+        """Queue a snapshot acquisition."""
+        self._task_queue.put(self._capture_task)
 
-def _capture_task(self) -> None:
-    """Worker-compatible wrapper for snapshot acquisition."""
-    self.capture_snapshot()
-    def get_record(self) -> dict[str, Any]:
-        with self._state_lock:
-            return dict(self.state.latest)
+    def _capture_task(self) -> None:
+        """Worker-compatible wrapper for snapshot acquisition."""
+        self.capture_snapshot()
+        def get_record(self) -> dict[str, Any]:
+            with self._state_lock:
+                return dict(self.state.latest)
 
     @staticmethod
     def _secret_file(value: Any, label: str) -> str:
