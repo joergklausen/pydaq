@@ -402,3 +402,28 @@ instruments:
       remove_on_success: true
     init: {}
     processing: {}
+
+  tapo:
+    enabled: true
+    driver: tapo
+    io:
+      kind: rtsp
+      host: 192.168.200.164
+      port: 554
+      username: ~/.secrets/tapo-account-username
+      password: ~/.secrets/tapo-account-password
+      timeout_seconds: 25
+    init:
+      stream: 1
+      image_format: png
+    schedule:
+      sample_every_seconds: 600
+      rollover: none
+      transmit_every_seconds: 600
+      transmit_delay_seconds: 15
+      print_every_seconds: 0
+    output:
+      format: files
+      remote_path: tapo
+      remove_on_success: true
+    processing: {}
