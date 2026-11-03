@@ -172,6 +172,13 @@ sudo apt install nmap -y
 nmap -sn
 ```
 
+### Find devices on the USB bus
+
+```bash
+lsusb -t
+ls -l /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
+```
+
 ## Configuration conventions
 
 This repo assumes:
