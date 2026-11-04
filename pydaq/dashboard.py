@@ -16,9 +16,22 @@ Notes:
 from __future__ import annotations
 
 import json
+import math
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict
 
+def _json_safe(value):
+    """Replace non-finite floating-point values with JSON null."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {
+            str(key): _json_safe(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
 
 class _Handler(BaseHTTPRequestHandler):
     """Request handler for the dashboard server.
@@ -41,7 +54,11 @@ class _Handler(BaseHTTPRequestHandler):
             code: HTTP status code.
             payload: Any JSON-serializable object.
         """
-        body = json.dumps(payload, default=str).encode("utf-8")
+        body = json.dumps(
+            _json_safe(payload),
+            default=str,
+            allow_nan=False,
+        ).encode("utf-8")
         self.send_response(code)
         self.send_header("content-type", "application/json; charset=utf-8")
         self.send_header("content-length", str(len(body)))
