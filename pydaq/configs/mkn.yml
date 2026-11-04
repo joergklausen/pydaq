@@ -408,7 +408,7 @@ instruments:
     driver: tapo
     io:
       kind: rtsp
-      host: 192.168.200.164
+      host: 192.168.200.163
       port: 554
       username: ~/.secrets/tapo-account-username
       password: ~/.secrets/tapo-account-password
