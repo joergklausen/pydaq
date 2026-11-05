@@ -207,7 +207,7 @@ instruments:
       # host: 192.168.0.100
       # port: 5004
       kind: serial
-      port: /dev/ttyUSB1
+      port: /dev/ttyUSB0
       baudrate: 19200 
       bytesize: 8 
       parity: N
@@ -242,7 +242,7 @@ instruments:
       # host: 192.168.0.100
       # port: 5004
       kind: serial
-      port: /dev/ttyUSB1
+      port: /dev/ttyUSB0
       baudrate: 19200 
       bytesize: 8 
       parity: N
@@ -277,7 +277,7 @@ instruments:
       # host: 192.168.0.100
       # port: 5004
       kind: serial
-      port: /dev/ttyUSB1
+      port: /dev/ttyUSB0
       baudrate: 19200 
       bytesize: 8 
       parity: N
