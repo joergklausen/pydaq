@@ -94,6 +94,22 @@ def format_latest_record(record: Mapping[str, Any]) -> str:
     if not record:
         return "no data"
 
+    # Eaton UPS: operator-facing power source and battery autonomy.
+    # Match on the specific Eaton record shape, not a generic status field.
+    if "output_source_code" in record and "battery_capacity_pct" in record:
+        source = _text(record.get("output_source")) or "unknown"
+        battery_flag = _integer(record, "on_battery")
+        runtime = _number(record, "battery_runtime_min")
+        capacity = _number(record, "battery_capacity_pct")
+        parts = [f"source={source}"]
+        if battery_flag is not None:
+            parts.append(f"on_battery={battery_flag}")
+        if runtime is not None:
+            parts.append(f"battery_runtime={format_number(runtime)}'")
+        if capacity is not None:
+            parts.append(f"battery_capacity={format_number(capacity)} %")
+        return " ".join(parts)
+
     # Thermo 49-series ozone analysers.
     ozone = _number(record, "o3")
     if ozone is not None:
