@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import logging
 import struct
 from typing import Any
 
@@ -292,4 +293,202 @@ def test_cli_passes_unverified_option_to_timed_runner(
     assert remote.main([
         "-c", str(cfg), "zero", "--seconds", "45", "--experimental", "--allow-unverified"
     ]) == 0
-    assert calls == [([(1, 45.0)], {"verify_seconds": 5.0, "allow_unverified": True})]
+    assert calls == [([(1, 45.0)], {"verify_seconds": 30.0, "allow_unverified": True})]
+
+
+def test_cli_status_uses_timestamped_logger(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The read-only status uses the same timestamped log path as zero/span."""
+    cfg = tmp_path / "config.yml"
+    cfg.write_text("instruments: {ne300: {driver: ne300, io: {host: example.org, port: 123}}}")
+    monkeypatch.setattr(remote.AcoemRemote, "status", lambda self: {4035: 1, 4036: 7})
+    with caplog.at_level(logging.INFO, logger="pydaq.ne300_zero_span_control"):
+        assert remote.main(["-c", str(cfg), "status"]) == 0
+    rows = [record for record in caplog.records if "4035 current_operation" in record.message]
+    assert len(rows) == 1
+    assert rows[0].levelname == "INFO"
+    assert "4035 current_operation=1 (zero), 4036 dio_state=7" in rows[0].message
+    # logging timestamps are attached by the UTC logging formatter.
+    assert rows[0].created > 0
+
+
+def test_default_verification_time_is_30_seconds() -> None:
+    parser = remote.make_parser()
+    args = parser.parse_args(["-c", "mkn.yml", "status"])
+    assert args.verify_seconds == 30.0
+    assert remote.POLL_SECONDS == 1.0
+
+
+def test_delayed_4035_readback_is_accepted(
+    monkeypatch: pytest.MonkeyPatch, endpoint: remote.AcoemEndpoint,
+) -> None:
+    client = remote.AcoemRemote(endpoint)
+    clock = [100.0]
+    states = iter([0] * 12 + [1])
+    cmds: list[int] = []
+    monkeypatch.setattr(remote.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(remote.time, "sleep", lambda n: clock.__setitem__(0, clock[0] + n))
+
+    def respond(command: int, body: bytes, *, expect_response: bool) -> bytes:
+        cmds.append(command)
+        return b"" if command == 5 else struct.pack(">i", next(states))
+
+    monkeypatch.setattr(client, "_request", respond)
+    client.set_operation(1)  # succeeds after twelve seconds, within the 30-second default
+    assert clock[0] == 112.0
+    assert cmds == [5] + [4] * 13
+
+
+def test_transient_readback_error_is_retried(
+    monkeypatch: pytest.MonkeyPatch, endpoint: remote.AcoemEndpoint,
+) -> None:
+    client = remote.AcoemRemote(endpoint)
+    clock = [0.0]
+    observations: list[object] = [TimeoutError("slow"), TimeoutError("slow"), 2]
+    monkeypatch.setattr(remote.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(remote.time, "sleep", lambda n: clock.__setitem__(0, clock[0] + n))
+    monkeypatch.setattr(client, "_request", lambda *a, **k: b"")
+
+    def status_values(parameters: Any) -> dict[int, int]:
+        state = observations.pop(0)
+        if isinstance(state, BaseException):
+            raise state
+        return {4035: int(state)}
+
+    monkeypatch.setattr(client, "get_values", status_values)
+    client.set_operation(2, verify_seconds=10.0)
+    assert clock[0] == 2.0
+
+
+def test_persistent_readback_error_is_not_mislabeled_unverified(
+    monkeypatch: pytest.MonkeyPatch, endpoint: remote.AcoemEndpoint,
+) -> None:
+    client = remote.AcoemRemote(endpoint)
+    clock = [0.0]
+    monkeypatch.setattr(remote.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(remote.time, "sleep", lambda n: clock.__setitem__(0, clock[0] + n))
+    monkeypatch.setattr(client, "_request", lambda *a, **k: b"")
+    monkeypatch.setattr(client, "get_values", lambda _p: (_ for _ in ()).throw(TimeoutError("offline")))
+    with pytest.raises(RuntimeError, match="read-back failed"):
+        client.set_operation(1, verify_seconds=2.0)
+
+
+def test_phase_verification_never_exceeds_requested_duration(
+    monkeypatch: pytest.MonkeyPatch, endpoint: remote.AcoemEndpoint,
+) -> None:
+    client = remote.AcoemRemote(endpoint)
+    seen: list[tuple[int, float]] = []
+    now = [0.0]
+    monkeypatch.setattr(client, "status", lambda: {4035: 0})
+    monkeypatch.setattr(remote.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(remote.time, "sleep", lambda n: now.__setitem__(0, now[0] + n))
+
+    def record(mode: int, *, verify_seconds: float = 30.0) -> None:
+        seen.append((mode, verify_seconds))
+
+    monkeypatch.setattr(client, "set_operation", record)
+    remote.run_modes(client, [(1, 3.0)], verify_seconds=30.0)
+    assert seen == [(1, 3.0), (0, 30.0)]
+    assert now[0] == 3.0
+
+
+def test_verified_delayed_transition_preserves_phase_deadline(
+    monkeypatch: pytest.MonkeyPatch, endpoint: remote.AcoemEndpoint,
+) -> None:
+    client = remote.AcoemRemote(endpoint)
+    now = [100.0]
+    modes: list[int] = []
+    slept: list[float] = []
+    monkeypatch.setattr(client, "status", lambda: {4035: 0, 4036: 0})
+    monkeypatch.setattr(remote.time, "monotonic", lambda: now[0])
+
+    def set_mode(mode: int, *, verify_seconds: float = 30.0) -> None:
+        modes.append(mode)
+        if mode == 1:
+            assert verify_seconds == 30.0
+            now[0] += 17.0  # NE-300 confirms after 17 seconds
+
+    def sleep(seconds: float) -> None:
+        slept.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(client, "set_operation", set_mode)
+    monkeypatch.setattr(remote.time, "sleep", sleep)
+    remote.run_modes(client, [(1, 30.0)])
+    assert modes == [1, 0]
+    assert slept == [13.0]
+    assert now[0] == 130.0
+
+
+def test_span_return_retries_the_write_not_only_the_read(
+    monkeypatch: pytest.MonkeyPatch,
+    endpoint: remote.AcoemEndpoint,
+) -> None:
+    """A lost ambient command must trigger another command-5 write."""
+    client = remote.AcoemRemote(endpoint)
+    actions: list[int] = []
+    waits: list[float] = []
+    monkeypatch.setattr(client, "status", lambda: {4035: 0, 4036: 3})
+
+    def fake_set(mode: int, *, verify_seconds: float = 30) -> None:
+        actions.append(mode)
+        if mode == 0 and actions.count(0) == 1:
+            raise remote.UnverifiedStateError("4035 stayed in span")
+
+    monkeypatch.setattr(client, "set_operation", fake_set)
+    monkeypatch.setattr(remote.time, "sleep", lambda n: waits.append(n))
+    monkeypatch.setattr(remote.time, "monotonic", lambda: 100.0)
+    remote.run_modes(client, [(2, 0.01)])
+    assert actions == [2, 0, 0]
+    assert remote.AMBIENT_RETRY_DELAY_SECONDS in waits
+
+
+def test_three_unconfirmed_ambient_writes_raise_critical_error(
+    monkeypatch: pytest.MonkeyPatch,
+    endpoint: remote.AcoemEndpoint,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = remote.AcoemRemote(endpoint)
+    commands: list[int] = []
+
+    def fake_set(mode: int, *, verify_seconds: float = 30) -> None:
+        commands.append(mode)
+        raise remote.UnverifiedStateError("4035 remains 2")
+
+    monkeypatch.setattr(client, "set_operation", fake_set)
+    monkeypatch.setattr(remote.time, "sleep", lambda _: None)
+    with pytest.raises(RuntimeError, match="Ambient return not verified"):
+        remote.ensure_ambient(client)
+    assert commands == [0, 0, 0]
+    assert "NE-300 MAY REMAIN IN ZERO/SPAN" in caplog.text
+
+
+def test_ambient_status_check_retries_even_if_first_write_poll_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+    endpoint: remote.AcoemEndpoint,
+) -> None:
+    client = remote.AcoemRemote(endpoint)
+    commands: list[int] = []
+    states = iter([{4035: 2, 4036: 3}, {4035: 0, 4036: 2}])
+    monkeypatch.setattr(client, "status", lambda: next(states))
+    monkeypatch.setattr(client, "set_operation", lambda mode, **kwargs: commands.append(mode))
+    monkeypatch.setattr(remote.time, "sleep", lambda _: None)
+    remote.ensure_ambient(client)
+    assert commands == [0, 0]
+
+
+def test_cli_explicit_ambient_uses_retries(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = tmp_path / "config.yml"
+    cfg.write_text("instruments: {ne300: {driver: ne300, io: {host: example.org, port: 123}}}")
+    calls: list[float] = []
+
+    def fake_ambient(_client: Any, *, verify_seconds: float = 30.0) -> None:
+        calls.append(verify_seconds)
+
+    monkeypatch.setattr(remote, "ensure_ambient", fake_ambient)
+    assert remote.main(["-c", str(cfg), "ambient", "--experimental"]) == 0
+    assert calls == [30.0]

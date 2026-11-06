@@ -33,6 +33,7 @@ _DRIVER_MAP: dict[str, str] = {
     "picarro": "pydaq.instruments.picarro:G2401",
     "tahmo": "pydaq.instruments.tahmo:TAHMO",
     "tapo": "pydaq.instruments.tapo:TAPO",
+    "eaton": "pydaq.instruments.eaton:EATON",
 }
 
 def list_drivers() -> list[str]:

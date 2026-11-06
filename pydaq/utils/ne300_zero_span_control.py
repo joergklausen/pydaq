@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 import logging
 from pathlib import Path
 import socket
@@ -31,8 +32,12 @@ import yaml
 CURRENT_OPERATION = 4035
 DIO_STATE = 4036
 MODES = {0: "ambient", 1: "zero", 2: "span"}
+DEFAULT_VERIFY_SECONDS = 30.0
+POLL_SECONDS = 1.0
+AMBIENT_ATTEMPTS = 3
+AMBIENT_RETRY_DELAY_SECONDS = 2.0
 _TELNET_NEGOTIATION = b"\xff\xfb\x01\xff\xfe\x01\xff\xfb\x03"
-_LOG = logging.getLogger("pydaq.ne300_remote")
+_LOG = logging.getLogger("pydaq.ne300_zero_span_control")
 
 
 @dataclass(frozen=True)
@@ -191,8 +196,8 @@ class AcoemRemote:
         self,
         mode: int,
         *,
-        verify_seconds: float = 5.0,
-        poll_seconds: float = 0.25,
+        verify_seconds: float = DEFAULT_VERIFY_SECONDS,
+        poll_seconds: float = POLL_SECONDS,
     ) -> None:
         """Experimentally request an operating state and verify its read-back.
 
@@ -215,25 +220,116 @@ class AcoemRemote:
         body = CURRENT_OPERATION.to_bytes(4, "big") + struct.pack(">i", mode)
         _LOG.warning("Sending EXPERIMENTAL 4035=%d (%s); no ACK is expected", mode, MODES[mode])
         self._request(5, body, expect_response=False)
-        deadline = time.monotonic() + verify_seconds
+        start = time.monotonic()
+        deadline = start + verify_seconds
+        last_reported: int | None = None
+        last_error: Exception | None = None
         while True:
-            reported = self.get_values([CURRENT_OPERATION])[CURRENT_OPERATION]
-            if reported == mode:
-                _LOG.info("Read-back 4035=%d (%s)", reported, MODES[mode])
-                return
-            if time.monotonic() >= deadline:
+            try:
+                reported = self.get_values([CURRENT_OPERATION])[CURRENT_OPERATION]
+            except (OSError, ValueError, RuntimeError, KeyError) as exc:
+                # A single delayed/failed read-back must not abort the timed
+                # sequence and force an immediate return to ambient.
+                last_error = exc
+                _LOG.warning("4035 read-back failed (%s); retrying", exc)
+            else:
+                last_error = None
+                if reported != last_reported and reported != mode:
+                    _LOG.info(
+                        "Awaiting %s: 4035 still reports %d",
+                        MODES[mode], reported,
+                    )
+                last_reported = reported
+                if reported == mode:
+                    _LOG.info(
+                        "Read-back 4035=%d (%s), confirmed after %.1f s",
+                        reported, MODES[mode], time.monotonic() - start,
+                    )
+                    return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                if last_error is not None:
+                    raise RuntimeError(
+                        f"Cannot verify {MODES[mode]}: 4035 read-back failed: {last_error}"
+                    ) from last_error
                 raise UnverifiedStateError(
                     f"Cannot verify operation change to {MODES[mode]}: "
-                    f"4035 still reports {reported}; no evidence that command 5 took effect"
+                    f"4035 still reports {last_reported}; "
+                    f"no evidence that command 5 took effect after {verify_seconds:g} seconds"
                 )
-            time.sleep(min(poll_seconds, max(0.0, deadline - time.monotonic())))
+            time.sleep(min(poll_seconds, remaining))
+
+
+
+def ensure_ambient(
+    client: AcoemRemote,
+    *,
+    verify_seconds: float = DEFAULT_VERIFY_SECONDS,
+    attempts: int = AMBIENT_ATTEMPTS,
+) -> None:
+    """Request ambient repeatedly until 4035 confirms, or fail loudly.
+
+    ACOEM CMD 5 has no acknowledgement. A successful TCP send therefore
+    does *not* establish that the instrument changed state. Repeat the actual
+    write if read-back fails; merely polling again cannot correct a lost write.
+
+    This is a best-effort software recovery, not a physical gas shutoff. It
+    cannot protect against a terminated process, host failure, disconnected
+    instrument, or an unresponsive valve.
+    """
+    if attempts < 1:
+        raise ValueError("Ambient attempts must be positive")
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        _LOG.warning(
+            "Ambient return request %d/%d: writing 4035=0", attempt, attempts,
+        )
+        try:
+            client.set_operation(0, verify_seconds=verify_seconds)
+            # Confirm the mode once more using the same read-only status path
+            # operators use for an independent check. Include DIO_STATE as
+            # diagnostic context, not a valve-position assertion.
+            current = client.status()
+            if current[CURRENT_OPERATION] != 0:
+                raise UnverifiedStateError(
+                    "Independent ambient status check returned "
+                    f"4035={current[CURRENT_OPERATION]}"
+                )
+        except Exception as exc:
+            # The ambient return is a last recovery chance; retry even on
+            # unexpected ordinary errors (but never swallow Ctrl+C/SystemExit).
+            last_error = exc
+            _LOG.error(
+                "Ambient NOT confirmed on attempt %d/%d: %s",
+                attempt, attempts, exc,
+            )
+            if attempt < attempts:
+                time.sleep(AMBIENT_RETRY_DELAY_SECONDS)
+        else:
+            _LOG.warning(
+                "Ambient CONFIRMED: 4035=0, 4036=%s; "
+                "physical valve position is not independently verified",
+                current.get(DIO_STATE, "?"),
+            )
+            return
+    _LOG.critical(
+        "AMBIENT RETURN FAILED after %d commands; "
+        "NE-300 MAY REMAIN IN ZERO/SPAN. "
+        "Check the instrument locally and stop span gas supply if needed. "
+        "Last error: %s",
+        attempts, last_error,
+    )
+    raise RuntimeError(
+        "Ambient return not verified after "
+        f"{attempts} attempts; instrument needs immediate attention"
+    ) from last_error
 
 
 def run_modes(
     client: AcoemRemote,
     phases: Sequence[tuple[int, float]],
     *,
-    verify_seconds: float = 5.0,
+    verify_seconds: float = DEFAULT_VERIFY_SECONDS,
     allow_unverified: bool = False,
 ) -> None:
     """Request zero/span for bounded durations and always request ambient.
@@ -264,7 +360,10 @@ def run_modes(
             # write, including any time spent polling 4035 for verification.
             phase_deadline = time.monotonic() + duration
             try:
-                client.set_operation(mode, verify_seconds=verify_seconds)
+                # Verification must never outlast a requested phase.
+                client.set_operation(
+                    mode, verify_seconds=min(verify_seconds, duration),
+                )
             except UnverifiedStateError as exc:
                 if not allow_unverified:
                     raise
@@ -274,9 +373,11 @@ def run_modes(
                     MODES[mode], exc,
                 )
             remaining = max(0.0, phase_deadline - time.monotonic())
+            eta = datetime.now(timezone.utc) + timedelta(seconds=remaining)
             _LOG.warning(
-                "Requested %s (NOT a calibration); ambient or next phase in "
-                "%.1f seconds", MODES[mode], remaining,
+                "Requested %s (NOT a calibration); ambient or next phase "
+                "scheduled at %s (%.1f seconds remaining)",
+                MODES[mode], eta.isoformat(timespec="seconds"), remaining,
             )
             if remaining:
                 time.sleep(remaining)
@@ -284,17 +385,8 @@ def run_modes(
         # Even if a phase fails or Ctrl+C interrupts time.sleep, try ambient.
         # Cannot recover from power failure, forced termination, or a rejected
         # command: manual/instrument-side fail-safe must cover those cases.
-        _LOG.warning("Requesting return to ambient now (4035=0)")
-        try:
-            client.set_operation(0, verify_seconds=verify_seconds)
-        except Exception as exc:
-            _LOG.critical(
-                "Ambient return NOT VERIFIED: %s; inspect instrument locally", exc
-            )
-            raise
-        _LOG.warning(
-            "4035 reports ambient after return request; physical valve position not proven"
-        )
+        _LOG.warning("Timed phase ended: requesting return to ambient now (4035=0)")
+        ensure_ambient(client, verify_seconds=verify_seconds)
 
 
 def _positive_seconds(value: str) -> float:
@@ -315,7 +407,10 @@ def make_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-c", "--config", type=Path, required=True, help="Station YAML")
     parser.add_argument("--instrument", default="ne300", help="Instrument config key")
-    parser.add_argument("--verify-seconds", type=_positive_seconds, default=5.0)
+    parser.add_argument(
+        "--verify-seconds", type=_positive_seconds, default=DEFAULT_VERIFY_SECONDS,
+        help="Seconds allowed for state read-back (default: 30; bounded by phase duration)",
+    )
     parser.add_argument("--log-file", type=Path, help="Optional persistent operations log")
     commands = parser.add_subparsers(dest="action", required=True)
     commands.add_parser("status", help="Read 4035/4036 only (safe default)")
@@ -359,16 +454,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.action == "status":
             values = client.status()
             mode = values[CURRENT_OPERATION]
-            print(
-                f"4035 current_operation={mode} ({MODES.get(mode, 'other')}), "
-                f"4036 dio_state={values[DIO_STATE]}"
+            _LOG.info(
+                "4035 current_operation=%d (%s), 4036 dio_state=%d",
+                mode, MODES.get(mode, "other"), values[DIO_STATE],
             )
             return 0
         if not args.experimental:
             parser.error("State writes are UNCONFIRMED for 4035; add --experimental to attempt one")
         _LOG.warning("This operation is not a calibration and does not update coefficients")
         if args.action == "ambient":
-            client.set_operation(0, verify_seconds=args.verify_seconds)
+            ensure_ambient(client, verify_seconds=args.verify_seconds)
         elif args.action in {"zero", "span"}:
             mode = 1 if args.action == "zero" else 2
             run_modes(

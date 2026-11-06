@@ -408,7 +408,7 @@ instruments:
     driver: tapo
     io:
       kind: rtsp
-      host: 192.168.200.163
+      host: 192.168.200.164
       port: 554
       username: ~/.secrets/tapo-account-username
       password: ~/.secrets/tapo-account-password
@@ -427,3 +427,32 @@ instruments:
       remote_path: tapo
       remove_on_success: true
     processing: {}
+
+  eaton:
+    enabled: true
+    driver: eaton
+    io:
+      kind: snmp
+      host: 192.168.1.141
+      port: 161
+      user: admin
+      security_level: noAuthNoPriv  # change to authPriv for production
+      timeout_seconds: 3
+      retries: 1
+      # For authPriv: uncomment and create these secret files:
+      # auth_password_file: ~/.secrets/eaton-snmp-auth
+      # priv_password_file: ~/.secrets/eaton-snmp-priv
+    schedule:
+      sample_every_seconds: 60
+      rollover: hourly
+      rollover_at: ":00"
+      transmit_every_seconds: 600
+      transmit_delay_seconds: 15
+      print_every_seconds: 60
+    output:
+      format: csv_zip
+      remote_path: eaton
+      remove_on_success: true
+    init: {}
+    processing: {}
+
