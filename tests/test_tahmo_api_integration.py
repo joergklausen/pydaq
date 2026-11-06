@@ -1,7 +1,7 @@
 """Read-only TAHMO integration probe using the station's YAML configuration.
 
 Run from the repository root with:
-    pytest -q -s tests/test_tahmo_api_integration.py
+    python -m pytest -q -s tests/test_tahmo_api_integration.py --run-integration
 
 Change STATION_CONFIG below if testing another station. This test never
 modifies pydaq's state or production data/outbox directories.
@@ -24,6 +24,7 @@ TEST_START = "2026-10-12 00:00:00"
 TEST_END = "2026-10-12 03:00:00"
 
 
+@pytest.mark.integration
 def test_tahmo_short_live_download(tmp_path: Path) -> None:
     """Download a short interval for the TAHMO configured in the station YAML."""
     assert STATION_CONFIG.is_file(), f"Station config not found: {STATION_CONFIG}"
@@ -35,7 +36,8 @@ def test_tahmo_short_live_download(tmp_path: Path) -> None:
     assert isinstance(instrument, dict), "Expected 'instruments.tahmo' mapping"
 
     config = TahmoConfig.from_parameters(instrument)
-    assert config.token_file.is_file(), f"Token file not found: {config.token_file}"
+    if not config.token_file.is_file():
+        pytest.skip(f"TAHMO API token unavailable: {config.token_file}")
 
     client = ZentraV4Client(
         server=config.server,

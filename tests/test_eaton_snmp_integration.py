@@ -33,6 +33,7 @@ import pytest
 from eaton_snmp_support import collect_inventory, parse_ups_values, query_scalars
 
 
+@pytest.mark.integration
 def test_live_ups_snmp() -> None:
     """Run only when an explicit station + host + user are provided."""
     station = os.getenv('PYDAQ_EATON_TEST_STATION')
