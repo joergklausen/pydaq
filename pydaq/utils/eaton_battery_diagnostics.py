@@ -161,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-c", "--config", type=Path, default=Path("pydaq/configs/mkn.yml"))
     parser.add_argument("--instrument", default="eaton")
-    parser.add_argument("--output", type=Path, default=Path("eaton_battery_diagnostic.txt"))
+    parser.add_argument("--output", type=Path, default=Path("C:/Users/mkn/Documents/pydaq/mkn/outbox/eaton/eaton_battery_diagnostic.txt"))
     parser.add_argument("--max-objects", type=int, default=600,
                         help="Maximum OIDs per subtree; default 600")
     args = parser.parse_args(argv)
