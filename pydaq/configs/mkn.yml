@@ -431,6 +431,7 @@ instruments:
   eaton:
     enabled: true
     driver: eaton
+    mac: 00-85-DE-37-27
     io:
       kind: snmp
       host: 192.168.1.141
